@@ -12,9 +12,9 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Mutex, MutexGuard};
 use tauri::ipc::CapabilityBuilder;
 use tauri::webview::{NewWindowResponse, WebviewBuilder};
-use tauri::window::WindowBuilder;
+use tauri::window::{Color, WindowBuilder};
 use tauri::{
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Webview, WebviewUrl, Window, WindowEvent, Wry,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Theme, Webview, WebviewUrl, Window, WindowEvent, Wry,
 };
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
@@ -87,13 +87,26 @@ pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
         LogicalPosition::new(0.0, 0.0),
         size,
     )?;
+    if let Ok(theme) = window.theme() {
+        paint_chrome(&window, theme);
+    }
     let w = window.clone();
-    window.on_window_event(move |event| {
-        if matches!(event, WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. }) {
-            relayout(&w);
-        }
+    window.on_window_event(move |event| match event {
+        WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => relayout(&w),
+        WindowEvent::ThemeChanged(theme) => paint_chrome(&w, *theme),
+        _ => {}
     });
     Ok(())
+}
+
+/// Window background = the shell's `--chrome` colour (src/App.css), so the transparent macOS title bar
+/// blends into the sidebar and tab bar in both themes.
+fn paint_chrome(window: &Window, theme: Theme) {
+    let color = match theme {
+        Theme::Dark => Color(30, 31, 34, 255),
+        _ => Color(233, 234, 237, 255),
+    };
+    let _ = window.set_background_color(Some(color));
 }
 
 fn main_window(app: &AppHandle) -> Result<Window, Box<dyn Error>> {

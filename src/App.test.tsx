@@ -43,8 +43,9 @@ describe('App', () => {
   it('leaves the Add view when a workspace is clicked', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Add Nextcloud' }));
+    expect(screen.getByRole('textbox', { name: 'Server address' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'A' }));
-    expect(screen.queryByText('Server URL')).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Server address' })).toBeNull();
     expect(screen.getAllByRole('tab')).toHaveLength(1);
   });
 });

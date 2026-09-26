@@ -1,5 +1,6 @@
 import { useState, type KeyboardEvent } from 'react';
 import { api } from '../api';
+import { AlertIcon, AppsIcon, CloudIcon, GlobeIcon } from '../icons';
 import type { AppState, Workspace } from '../types';
 
 /** Dialog requests: `add` from the sidebar, the others from native menus (`ui-request` event). */
@@ -14,14 +15,16 @@ const onEscape = (close: () => void) => (e: KeyboardEvent) => {
   if (e.key === 'Escape') close();
 };
 
+/** Without `onDone` it is the first-run screen (no workspace yet, nothing to cancel). */
 export function AddForm({ onDone }: { onDone?: () => void }) {
   const [url, setUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const insecure = /^http:\/\//i.test(url.trim());
+  const welcome = !onDone;
   return (
     <form
-      className="dialog"
+      className={welcome ? 'card welcome' : 'card'}
       onKeyDown={onDone ? onEscape(onDone) : undefined}
       onSubmit={async (e) => {
         e.preventDefault();
@@ -37,29 +40,58 @@ export function AddForm({ onDone }: { onDone?: () => void }) {
         }
       }}
     >
-      <h1>Add Nextcloud</h1>
-      <label htmlFor="server-url">Server URL</label>
-      <input
-        id="server-url"
-        autoFocus
-        inputMode="url"
-        placeholder="https://cloud.example.com"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-      />
-      {insecure && <p className="warn">This address is not encrypted (http).</p>}
+      <div className="card-head">
+        <div className="brand-mark">
+          <CloudIcon size={26} />
+        </div>
+        <h1>{welcome ? 'Welcome to NC Workspaces' : 'Add a Nextcloud server'}</h1>
+        <p className="lede">
+          {welcome
+            ? 'Connect your first Nextcloud server. You can add more later from the sidebar.'
+            : 'Enter the address you use to open Nextcloud in your browser.'}
+        </p>
+      </div>
+      <label className="field-label" htmlFor="server-url">
+        Server address
+      </label>
+      <div className={error ? 'field invalid' : 'field'}>
+        <GlobeIcon />
+        <input
+          id="server-url"
+          autoFocus
+          inputMode="url"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          placeholder="cloud.example.com"
+          aria-invalid={error ? true : undefined}
+          value={url}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            setError(null);
+          }}
+        />
+      </div>
+      {insecure && (
+        <p className="note warn">
+          <AlertIcon size={15} />
+          This address is not encrypted (http). Use it only on a network you trust.
+        </p>
+      )}
       {error && (
-        <p className="error" role="alert">
+        <p className="note error" role="alert">
+          <AlertIcon size={15} />
           {error}
         </p>
       )}
       <div className="actions">
         {onDone && (
-          <button type="button" onClick={onDone}>
+          <button type="button" className="btn ghost" onClick={onDone}>
             Cancel
           </button>
         )}
-        <button type="submit" className="primary" disabled={busy || !url.trim()}>
+        <button type="submit" className="btn primary" disabled={busy || !url.trim()}>
+          {busy && <span className="spinner" aria-hidden="true" />}
           Connect
         </button>
       </div>
@@ -71,22 +103,28 @@ function RenameForm({ ws, onDone }: { ws: Workspace; onDone: () => void }) {
   const [name, setName] = useState(ws.name);
   return (
     <form
-      className="dialog"
+      className="card"
       onKeyDown={onEscape(onDone)}
       onSubmit={(e) => {
         e.preventDefault();
         api.renameWorkspace(ws.id, name).then(onDone);
       }}
     >
-      <h1>Edit name</h1>
-      <label htmlFor="ws-name">Name</label>
-      <input id="ws-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-      <p className="hint">Leave empty to use the name shown by the server.</p>
+      <div className="card-head left">
+        <h1>Rename workspace</h1>
+        <p className="lede">Leave empty to use the name shown by the server.</p>
+      </div>
+      <label className="field-label" htmlFor="ws-name">
+        Name
+      </label>
+      <div className="field">
+        <input id="ws-name" autoFocus spellCheck={false} value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
       <div className="actions">
-        <button type="button" onClick={onDone}>
+        <button type="button" className="btn ghost" onClick={onDone}>
           Cancel
         </button>
-        <button type="submit" className="primary">
+        <button type="submit" className="btn primary">
           Save
         </button>
       </div>
@@ -96,14 +134,19 @@ function RenameForm({ ws, onDone }: { ws: Workspace; onDone: () => void }) {
 
 function Confirm(props: { title: string; body: string; action: string; onConfirm: () => Promise<void>; onDone: () => void }) {
   return (
-    <div className="dialog" role="alertdialog" aria-labelledby="confirm-title" onKeyDown={onEscape(props.onDone)}>
-      <h1 id="confirm-title">{props.title}</h1>
-      <p>{props.body}</p>
+    <div className="card" role="alertdialog" aria-labelledby="confirm-title" onKeyDown={onEscape(props.onDone)}>
+      <div className="card-head left">
+        <div className="confirm-icon">
+          <AlertIcon size={20} />
+        </div>
+        <h1 id="confirm-title">{props.title}</h1>
+        <p className="lede">{props.body}</p>
+      </div>
       <div className="actions">
-        <button type="button" autoFocus onClick={props.onDone}>
+        <button type="button" className="btn ghost" autoFocus onClick={props.onDone}>
           Cancel
         </button>
-        <button type="button" className="danger" onClick={() => props.onConfirm().then(props.onDone)}>
+        <button type="button" className="btn danger" onClick={() => props.onConfirm().then(props.onDone)}>
           {props.action}
         </button>
       </div>
@@ -122,7 +165,7 @@ export function DialogView({ dialog, state, onClose }: { dialog: Dialog; state: 
       return (
         <Confirm
           title={`Remove ${ws.name}?`}
-          body="Its tabs, settings and browsing data are deleted from this computer. You will be logged out."
+          body="Its tabs, settings and browsing data are deleted from this computer. You will be signed out."
           action="Remove"
           onConfirm={() => api.removeWorkspace(ws.id)}
           onDone={onClose}
@@ -132,8 +175,8 @@ export function DialogView({ dialog, state, onClose }: { dialog: Dialog; state: 
       return (
         <Confirm
           title={`Clear browsing data of ${ws.name}?`}
-          body="Cookies, storage and cache of this workspace are deleted. You will be logged out."
-          action="Clear"
+          body="Cookies, storage and cache of this workspace are deleted. You will be signed out."
+          action="Clear data"
           onConfirm={() => api.clearBrowsingData(ws.id)}
           onDone={onClose}
         />
@@ -145,7 +188,7 @@ export function DialogView({ dialog, state, onClose }: { dialog: Dialog; state: 
         <Confirm
           title={`Close pinned tab ${tab.title}?`}
           body="The tab and its page state are closed."
-          action="Close"
+          action="Close tab"
           onConfirm={() => api.closeTab(ws.id, tab.id)}
           onDone={onClose}
         />
@@ -157,9 +200,13 @@ export function DialogView({ dialog, state, onClose }: { dialog: Dialog; state: 
 export function EmptyWorkspace({ ws }: { ws: string }) {
   return (
     <div className="empty">
-      <p>No app open in this workspace.</p>
-      <button className="primary" onClick={() => api.appsMenu(ws)}>
-        Open app
+      <div className="empty-icon">
+        <AppsIcon size={26} />
+      </div>
+      <h2>No open tabs</h2>
+      <p>Open a Nextcloud app to start working in this workspace.</p>
+      <button className="btn primary" onClick={() => api.appsMenu(ws)}>
+        Open an app
       </button>
     </div>
   );

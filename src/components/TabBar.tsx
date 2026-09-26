@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { api } from '../api';
+import { CloseIcon, PinIcon, PlusIcon } from '../icons';
 import type { Workspace } from '../types';
 import { move } from '../util';
 
@@ -40,6 +41,11 @@ export function TabBar({ workspace, notice }: { workspace: Workspace | null; not
                 api.tabMenu(ws, t.id);
               }}
             >
+              {t.pinned && (
+                <span className="pin">
+                  <PinIcon size={12} />
+                </span>
+              )}
               <span className="title">{t.title}</span>
               {!t.pinned && (
                 <button
@@ -50,7 +56,7 @@ export function TabBar({ workspace, notice }: { workspace: Workspace | null; not
                     api.closeTab(ws, t.id);
                   }}
                 >
-                  ×
+                  <CloseIcon size={12} />
                 </button>
               )}
             </div>
@@ -58,7 +64,7 @@ export function TabBar({ workspace, notice }: { workspace: Workspace | null; not
         })}
       </div>
       <button className="add" title="Open app" aria-label="Open app" onClick={() => api.appsMenu(ws)}>
-        +
+        <PlusIcon size={16} />
       </button>
       {notice}
     </header>

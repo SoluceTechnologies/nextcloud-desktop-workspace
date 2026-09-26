@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api';
+import { PlusIcon } from '../icons';
 import type { AppState } from '../types';
 import { hue, initials, move } from '../util';
 
@@ -14,9 +15,9 @@ export function Sidebar(props: { state: AppState; adding: boolean; onAdd: () => 
         {state.workspaces.map((w, i) => {
           const active = !adding && w.id === state.activeWorkspaceId;
           return (
-            <li key={w.id}>
+            <li key={w.id} className={active ? 'active' : undefined}>
               <button
-                className={active ? 'ws active' : 'ws'}
+                className="ws"
                 title={w.name}
                 aria-label={w.name}
                 aria-current={active ? 'page' : undefined}
@@ -37,9 +38,9 @@ export function Sidebar(props: { state: AppState; adding: boolean; onAdd: () => 
                 }}
               >
                 {w.icon ? (
-                  <img src={w.icon} alt="" />
+                  <img src={w.icon} alt="" draggable={false} />
                 ) : (
-                  <span className="initials" style={{ background: `hsl(${hue(w.id)} 45% 42%)` }}>
+                  <span className="initials" style={{ background: `hsl(${hue(w.id)} 52% 44%)` }}>
                     {initials(w.name)}
                   </span>
                 )}
@@ -48,15 +49,18 @@ export function Sidebar(props: { state: AppState; adding: boolean; onAdd: () => 
           );
         })}
       </ul>
-      <button
-        className={adding ? 'add active' : 'add'}
-        title="Add Nextcloud"
-        aria-label="Add Nextcloud"
-        aria-current={adding ? 'page' : undefined}
-        onClick={onAdd}
-      >
-        +
-      </button>
+      {state.workspaces.length > 0 && <div className="sidebar-sep" aria-hidden="true" />}
+      <div className={adding ? 'slot active' : 'slot'}>
+        <button
+          className="add"
+          title="Add Nextcloud"
+          aria-label="Add Nextcloud"
+          aria-current={adding ? 'page' : undefined}
+          onClick={onAdd}
+        >
+          <PlusIcon size={18} />
+        </button>
+      </div>
     </nav>
   );
 }
