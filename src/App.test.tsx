@@ -15,7 +15,7 @@ const state: AppState = {
       baseUrl: 'https://a.com/',
       name: 'A',
       nameCustom: false,
-      icon: null,
+      icon: null, iconCustom: false,
       apps: [],
       activeTabId: 't',
       tabs: [{ id: 't', appId: 'files', title: 'Files', url: 'https://a.com/apps/files/', pinned: false }],

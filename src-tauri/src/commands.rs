@@ -88,6 +88,11 @@ pub fn clear_browsing_data(app: AppHandle, ws: Uuid) {
 }
 
 #[tauri::command]
+pub fn set_workspace_icon(app: AppHandle, ws: Uuid, icon: Option<String>) {
+    apply(&app, |e| e.set_icon(ws, icon));
+}
+
+#[tauri::command]
 pub fn set_theme(app: AppHandle, theme: Appearance) {
     apply(&app, |e| e.set_theme(theme));
 }

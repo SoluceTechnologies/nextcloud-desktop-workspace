@@ -10,6 +10,11 @@ const APPEARANCES: { value: Appearance; label: string; icon: ReactNode }[] = [
   { value: 'dark', label: 'Dark', icon: <MoonIcon size={15} /> },
 ];
 
+/** What a workspace tile shows: its icon, else the initials of its name. */
+export function TileFace({ icon, name }: { icon: string | null; name: string }) {
+  return icon ? <img src={icon} alt="" draggable={false} /> : <span className="initials">{initials(name)}</span>;
+}
+
 /** `adding`: the Add view is open, so `+` is the current item; clicking a workspace leaves it (`onActivate`). */
 export function Sidebar(props: { state: AppState; adding: boolean; onAdd: () => void; onActivate: () => void }) {
   const { state, adding, onAdd, onActivate } = props;
@@ -43,13 +48,7 @@ export function Sidebar(props: { state: AppState; adding: boolean; onAdd: () => 
                   api.workspaceMenu(w.id);
                 }}
               >
-                {w.icon ? (
-                  <img src={w.icon} alt="" draggable={false} />
-                ) : (
-                  <span className="initials">
-                    {initials(w.name)}
-                  </span>
-                )}
+                <TileFace icon={w.icon} name={w.name} />
               </button>
             </li>
           );

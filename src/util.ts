@@ -23,3 +23,15 @@ export function move<T>(items: T[], from: number, to: number): T[] {
   out.splice(to, 0, item);
   return out;
 }
+
+/** A picked image file as a 128 px PNG data URL, contained on transparency (the Rust side takes ≤ 64 KB). */
+export async function imageToIcon(file: Blob): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const size = 128;
+  const scale = Math.min(size / bitmap.width, size / bitmap.height);
+  const [w, h] = [bitmap.width * scale, bitmap.height * scale];
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  canvas.getContext('2d')!.drawImage(bitmap, (size - w) / 2, (size - h) / 2, w, h);
+  return canvas.toDataURL('image/png');
+}

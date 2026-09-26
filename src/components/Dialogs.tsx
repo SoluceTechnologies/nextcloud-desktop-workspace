@@ -1,12 +1,14 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 import { api } from '../api';
 import { AlertIcon } from '../icons';
 import type { AppState, Workspace } from '../types';
+import { imageToIcon } from '../util';
+import { TileFace } from './Sidebar';
 
 /** Dialog requests: `add` from the sidebar, the others from native menus (`ui-request` event). */
 export type Dialog =
   | { kind: 'add' }
-  | { kind: 'rename'; ws: string }
+  | { kind: 'edit'; ws: string }
   | { kind: 'confirm-remove'; ws: string }
   | { kind: 'confirm-clear'; ws: string }
   | { kind: 'confirm-close'; ws: string; tab: string };
@@ -92,25 +94,73 @@ export function AddForm({ onDone }: { onDone?: () => void }) {
   );
 }
 
-function RenameForm({ ws, onDone }: { ws: Workspace; onDone: () => void }) {
+/** Name and icon. Icon: `undefined` = unchanged, `null` = back to the server's, string = picked image. */
+function EditForm({ ws, onDone }: { ws: Workspace; onDone: () => void }) {
   const [name, setName] = useState(ws.name);
+  const [icon, setIcon] = useState<string | null | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
+  const file = useRef<HTMLInputElement>(null);
+  const shown = icon === undefined ? ws.icon : icon;
+  const custom = icon === undefined ? ws.iconCustom : icon !== null;
   return (
     <form
       className="sheet"
       onKeyDown={onEscape(onDone)}
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        api.renameWorkspace(ws.id, name).then(onDone);
+        // Renaming marks the name as custom (the server's no longer applies): only when it changed.
+        if (name !== ws.name) await api.renameWorkspace(ws.id, name);
+        if (icon !== undefined) await api.setWorkspaceIcon(ws.id, icon);
+        onDone();
       }}
     >
-      <h1>Rename workspace</h1>
-      <p className="lede">Leave empty to use the name shown by the server.</p>
+      <h1>Edit workspace</h1>
+      <div className="icon-row">
+        <span className="tile-preview">
+          <TileFace icon={shown} name={name.trim() || ws.name} />
+        </span>
+        <div className="icon-actions">
+          <button type="button" className="btn ghost" onClick={() => file.current?.click()}>
+            Choose image…
+          </button>
+          {custom && (
+            <button type="button" className="btn ghost" onClick={() => setIcon(null)}>
+              Use server icon
+            </button>
+          )}
+        </div>
+        <input
+          ref={file}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={async (e) => {
+            const picked = e.target.files?.[0];
+            e.target.value = '';
+            if (!picked) return;
+            try {
+              setIcon(await imageToIcon(picked));
+              setError(null);
+            } catch {
+              setError('This file could not be read as an image.');
+            }
+          }}
+        />
+      </div>
+      <p className="hint">Without an image of your own, the server's logo is used, or the initials of the name.</p>
+      {error && (
+        <p className="note error" role="alert">
+          <AlertIcon size={15} />
+          {error}
+        </p>
+      )}
       <label className="field-label" htmlFor="ws-name">
         Name
       </label>
       <div className="field">
-        <input id="ws-name" autoFocus spellCheck={false} value={name} onChange={(e) => setName(e.target.value)} />
+        <input id="ws-name" spellCheck={false} value={name} onChange={(e) => setName(e.target.value)} />
       </div>
+      <p className="hint">Leave empty to use the name shown by the server.</p>
       <div className="actions">
         <button type="button" className="btn ghost" onClick={onDone}>
           Cancel
@@ -145,8 +195,8 @@ export function DialogView({ dialog, state, onClose }: { dialog: Dialog; state: 
   const ws = state.workspaces.find((w) => w.id === dialog.ws);
   if (!ws) return null;
   switch (dialog.kind) {
-    case 'rename':
-      return <RenameForm ws={ws} onDone={onClose} />;
+    case 'edit':
+      return <EditForm ws={ws} onDone={onClose} />;
     case 'confirm-remove':
       return (
         <Confirm

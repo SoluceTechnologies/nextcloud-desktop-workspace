@@ -44,6 +44,9 @@ pub struct Workspace {
     pub name_custom: bool,
     #[serde(default)]
     pub icon: Option<String>,
+    /// true once the user picks an icon in the app: server reports no longer replace it.
+    #[serde(default)]
+    pub icon_custom: bool,
     #[serde(default)]
     pub apps: Vec<AppEntry>,
     pub tabs: Vec<Tab>,
@@ -97,6 +100,7 @@ impl Workspace {
             name,
             name_custom: false,
             icon: None,
+            icon_custom: false,
             apps: Vec::new(),
             active_tab_id: Some(tab.id),
             tabs: vec![tab],

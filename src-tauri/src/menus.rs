@@ -73,7 +73,7 @@ fn popup(app: &AppHandle, items: &[&dyn IsMenuItem<Wry>]) -> tauri::Result<()> {
 }
 
 pub fn popup_workspace(app: &AppHandle, ws: Uuid) -> tauri::Result<()> {
-    let rename = item(app, Action::WsRename(ws), "Edit name…")?;
+    let rename = item(app, Action::WsRename(ws), "Edit workspace…")?;
     let reload = item(app, Action::WsReload(ws), "Reload")?;
     let clear = item(app, Action::WsClear(ws), "Clear browsing data…")?;
     let sep = PredefinedMenuItem::separator(app)?;
@@ -119,7 +119,7 @@ pub fn on_event(app: &AppHandle, id: &str) {
         let _ = app.emit_to("shell", "ui-request", UiRequest { kind, ws, tab });
     };
     let fx = match action {
-        Action::WsRename(ws) => return request("rename", ws, None),
+        Action::WsRename(ws) => return request("edit", ws, None),
         Action::WsClear(ws) => return request("confirm-clear", ws, None),
         Action::WsRemove(ws) => return request("confirm-remove", ws, None),
         Action::WsReload(ws) => engine(app).reload_workspace(ws),

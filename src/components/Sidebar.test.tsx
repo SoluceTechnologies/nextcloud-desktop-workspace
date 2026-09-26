@@ -13,8 +13,8 @@ const state: AppState = {
   activeWorkspaceId: 'b',
   theme: 'dark',
   workspaces: [
-    { id: 'a', baseUrl: 'https://cloud.soluce.com/', name: 'cloud.soluce.com', nameCustom: false, icon: null, apps: [], tabs: [], activeTabId: null },
-    { id: 'b', baseUrl: 'https://occos.fr/', name: 'OCCOS', nameCustom: true, icon: 'data:image/png;base64,AAAA', apps: [], tabs: [], activeTabId: null },
+    { id: 'a', baseUrl: 'https://cloud.soluce.com/', name: 'cloud.soluce.com', nameCustom: false, icon: null, iconCustom: false, apps: [], tabs: [], activeTabId: null },
+    { id: 'b', baseUrl: 'https://occos.fr/', name: 'OCCOS', nameCustom: true, icon: 'data:image/png;base64,AAAA', iconCustom: false, apps: [], tabs: [], activeTabId: null },
   ],
 };
 

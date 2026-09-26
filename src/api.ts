@@ -15,6 +15,7 @@ export const api = {
   setOverlay: (on: boolean) => invoke<void>('set_overlay', { on }),
   clearBrowsingData: (ws: string) => invoke<void>('clear_browsing_data', { ws }),
   setTheme: (theme: Appearance) => invoke<void>('set_theme', { theme }),
+  setWorkspaceIcon: (ws: string, icon: string | null) => invoke<void>('set_workspace_icon', { ws, icon }),
   workspaceMenu: (ws: string) => invoke<void>('workspace_menu', { ws }),
   tabMenu: (ws: string, tab: string) => invoke<void>('tab_menu', { ws, tab }),
   appsMenu: (ws: string) => invoke<void>('apps_menu', { ws }),

@@ -15,6 +15,7 @@ fn main() {
             "set_overlay",
             "clear_browsing_data",
             "set_theme",
+            "set_workspace_icon",
             "workspace_menu",
             "tab_menu",
             "apps_menu",

@@ -56,6 +56,17 @@ impl Engine {
         Self { state, live: Vec::new(), overlay: false, max_live }
     }
 
+    /// Icon chosen in the app; `None` goes back to the server's (from the next page report).
+    pub fn set_icon(&mut self, ws: Uuid, icon: Option<String>) -> Vec<Effect> {
+        let Some(w) = self.state.ws_mut(ws) else { return Vec::new() };
+        match icon {
+            Some(i) if !valid_icon(&i) => return Vec::new(),
+            Some(i) => (w.icon, w.icon_custom) = (Some(i), true),
+            None => (w.icon, w.icon_custom) = (None, false),
+        }
+        vec![Effect::Changed]
+    }
+
     pub fn set_theme(&mut self, theme: Appearance) -> Vec<Effect> {
         self.state.theme = theme;
         vec![Effect::Theme(theme), Effect::Changed]
@@ -282,8 +293,12 @@ impl Engine {
     /// Once-per-page metadata from the bridge. Keeps only data-URL images and in-workspace app links.
     pub fn observe_meta(&mut self, tab: Uuid, icon: Option<String>, apps: Vec<AppLink>) -> Vec<Effect> {
         let Some(w) = self.state.ws_of_tab_mut(tab) else { return Vec::new() };
-        if let Some(i) = icon.filter(|i| i.len() <= MAX_ICON && i.starts_with("data:image/")) {
-            w.icon = Some(i);
+        // Some("") = the server has no custom favicon or logo (initials); None = unknown, keep.
+        match icon {
+            _ if w.icon_custom => {}
+            Some(i) if i.is_empty() => w.icon = None,
+            Some(i) if valid_icon(&i) => w.icon = Some(i),
+            _ => {}
         }
         let base = w.base_url.clone();
         let mut seen = HashSet::new();
@@ -414,6 +429,10 @@ impl Engine {
             }
         }
     }
+}
+
+fn valid_icon(icon: &str) -> bool {
+    icon.len() <= MAX_ICON && icon.starts_with("data:image/")
 }
 
 fn truncate(s: &str, max: usize) -> String {
@@ -859,6 +878,26 @@ mod tests {
         let too_big = format!("{ok}A");
         e.observe_meta(tab, Some(too_big), vec![]);
         assert_eq!(e.state.workspaces[0].icon.as_deref(), Some(ok.as_str()), "oversized icon rejected, previous kept");
+    }
+
+    #[test]
+    fn empty_icon_report_clears_the_server_icon_but_never_a_custom_one() {
+        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
+        let (w, tab) = (ws(&e, 0), e.state.workspaces[0].tabs[0].id);
+        e.observe_meta(tab, Some("data:image/png;base64,SERVER".into()), vec![]);
+        e.observe_meta(tab, None, vec![]);
+        assert_eq!(e.state.workspaces[0].icon.as_deref(), Some("data:image/png;base64,SERVER"), "unknown keeps it");
+        e.observe_meta(tab, Some(String::new()), vec![]);
+        assert_eq!(e.state.workspaces[0].icon, None, "no custom image on the server: initials");
+        assert_eq!(e.set_icon(w, Some("data:image/png;base64,MINE".into())), vec![Effect::Changed]);
+        e.observe_meta(tab, Some("data:image/png;base64,SERVER".into()), vec![]);
+        e.observe_meta(tab, Some(String::new()), vec![]);
+        assert_eq!(e.state.workspaces[0].icon.as_deref(), Some("data:image/png;base64,MINE"));
+        assert!(e.set_icon(w, Some("javascript:alert(1)".into())).is_empty(), "invalid icon rejected");
+        e.set_icon(w, None);
+        assert!(!e.state.workspaces[0].icon_custom);
+        e.observe_meta(tab, Some("data:image/png;base64,SERVER".into()), vec![]);
+        assert_eq!(e.state.workspaces[0].icon.as_deref(), Some("data:image/png;base64,SERVER"), "back to the server's");
     }
 
     #[test]

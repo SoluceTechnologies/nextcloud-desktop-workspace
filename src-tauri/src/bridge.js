@@ -92,18 +92,40 @@
     }));
   };
 
-  // Icon as a 128 px PNG data URL (the Rust side accepts data:image/ ≤ 64 KB). Drawn through a canvas
-  // because servers send it as octet-stream, ICO, SVG or a large PNG; <img> sniffs all of them.
+  // Workspace icon, as a 128 px PNG data URL (≤ 64 KB on the Rust side): the server's custom favicon,
+  // else its custom logo on the theme colour, else '' (nothing custom: the shell shows initials).
+  // Nextcloud theming defines --image-favicon/logoheader/logo only for images an admin uploaded; the
+  // default favicon is the current app's icon, which says nothing about the server. null = unknown
+  // (theming CSS not applied yet, image failed): the shell keeps what it has. Drawn through a canvas
+  // because servers send these as octet-stream, ICO, SVG or large PNGs; <img> sniffs all of them.
+  const cssImage = (style, name) => {
+    const m = style.getPropertyValue(name).match(/url\(\s*['"]?([^'")]+)/);
+    return m ? new URL(m[1], location.href).href : null;
+  };
   const icon = async () => {
-    const link = document.querySelector('link[rel="apple-touch-icon"]') || document.querySelector('link[rel~="icon"]');
-    if (!link || !link.href) return null;
+    const style = getComputedStyle(document.body);
+    const primary = style.getPropertyValue('--color-primary').trim();
+    if (!primary) return null;
+    const favicon = cssImage(style, '--image-favicon');
+    const logo = favicon ? null : cssImage(style, '--image-logoheader') || cssImage(style, '--image-logo');
+    if (!favicon && !logo) return '';
     try {
       const img = new Image();
-      img.src = link.href;
+      img.src = favicon || logo;
       await img.decode();
+      const size = 128;
+      const pad = favicon ? 0 : 20;
       const canvas = document.createElement('canvas');
-      canvas.width = canvas.height = 128;
-      canvas.getContext('2d').drawImage(img, 0, 0, 128, 128);
+      canvas.width = canvas.height = size;
+      const g = canvas.getContext('2d');
+      if (logo) {
+        g.fillStyle = primary;
+        g.fillRect(0, 0, size, size);
+      }
+      const iw = img.naturalWidth || size;
+      const ih = img.naturalHeight || size;
+      const scale = Math.min((size - 2 * pad) / iw, (size - 2 * pad) / ih);
+      g.drawImage(img, (size - iw * scale) / 2, (size - ih * scale) / 2, iw * scale, ih * scale);
       return canvas.toDataURL('image/png');
     } catch {
       return null;

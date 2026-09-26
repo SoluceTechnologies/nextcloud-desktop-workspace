@@ -6,6 +6,7 @@ export type Workspace = {
   name: string;
   nameCustom: boolean;
   icon: string | null;
+  iconCustom: boolean;
   apps: AppEntry[];
   tabs: Tab[];
   activeTabId: string | null;

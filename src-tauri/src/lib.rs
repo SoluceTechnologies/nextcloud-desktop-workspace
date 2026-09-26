@@ -31,6 +31,7 @@ pub fn run() {
             commands::set_overlay,
             commands::clear_browsing_data,
             commands::set_theme,
+            commands::set_workspace_icon,
             commands::nc_report_location,
             commands::nc_report_meta,
             commands::nc_report_fullscreen,

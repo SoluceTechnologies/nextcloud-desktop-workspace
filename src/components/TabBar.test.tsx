@@ -13,7 +13,7 @@ const ws: Workspace = {
   baseUrl: 'https://a.com/',
   name: 'A',
   nameCustom: false,
-  icon: null,
+  icon: null, iconCustom: false,
   apps: [],
   activeTabId: 't2',
   tabs: [
