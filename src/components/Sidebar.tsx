@@ -3,14 +3,16 @@ import { api } from '../api';
 import type { AppState } from '../types';
 import { hue, initials, move } from '../util';
 
-export function Sidebar({ state, onAdd }: { state: AppState; onAdd: () => void }) {
+/** `adding`: the Add view is open, so `+` is the current item; clicking a workspace leaves it (`onActivate`). */
+export function Sidebar(props: { state: AppState; adding: boolean; onAdd: () => void; onActivate: () => void }) {
+  const { state, adding, onAdd, onActivate } = props;
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const ids = state.workspaces.map((w) => w.id);
   return (
     <nav className="sidebar" aria-label="Workspaces">
       <ul>
         {state.workspaces.map((w, i) => {
-          const active = w.id === state.activeWorkspaceId;
+          const active = !adding && w.id === state.activeWorkspaceId;
           return (
             <li key={w.id}>
               <button
@@ -25,7 +27,10 @@ export function Sidebar({ state, onAdd }: { state: AppState; onAdd: () => void }
                   if (dragFrom !== null && dragFrom !== i) api.reorderWorkspaces(move(ids, dragFrom, i));
                   setDragFrom(null);
                 }}
-                onClick={() => api.activateWorkspace(w.id)}
+                onClick={() => {
+                  api.activateWorkspace(w.id);
+                  onActivate();
+                }}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   api.workspaceMenu(w.id);
@@ -43,7 +48,13 @@ export function Sidebar({ state, onAdd }: { state: AppState; onAdd: () => void }
           );
         })}
       </ul>
-      <button className="add" title="Add Nextcloud" aria-label="Add Nextcloud" onClick={onAdd}>
+      <button
+        className={adding ? 'add active' : 'add'}
+        title="Add Nextcloud"
+        aria-label="Add Nextcloud"
+        aria-current={adding ? 'page' : undefined}
+        onClick={onAdd}
+      >
         +
       </button>
     </nav>

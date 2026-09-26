@@ -39,4 +39,12 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.getAllByRole('tab')).toHaveLength(1);
   });
+
+  it('leaves the Add view when a workspace is clicked', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Add Nextcloud' }));
+    fireEvent.click(screen.getByRole('button', { name: 'A' }));
+    expect(screen.queryByText('Server URL')).toBeNull();
+    expect(screen.getAllByRole('tab')).toHaveLength(1);
+  });
 });

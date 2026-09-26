@@ -24,7 +24,7 @@ afterEach(() => {
 
 describe('Sidebar', () => {
   it('shows initials without icon, the icon otherwise, and marks the active workspace', () => {
-    render(<Sidebar state={state} onAdd={() => {}} />);
+    render(<Sidebar state={state} adding={false} onAdd={() => {}} onActivate={() => {}} />);
     expect(screen.getByRole('button', { name: 'cloud.soluce.com' }).textContent).toBe('S');
     const occos = screen.getByRole('button', { name: 'OCCOS' });
     expect(occos.querySelector('img')).not.toBeNull();
@@ -32,7 +32,7 @@ describe('Sidebar', () => {
   });
 
   it('activates on click and opens the native menu on right click', () => {
-    render(<Sidebar state={state} onAdd={() => {}} />);
+    render(<Sidebar state={state} adding={false} onAdd={() => {}} onActivate={() => {}} />);
     const btn = screen.getByRole('button', { name: 'cloud.soluce.com' });
     fireEvent.click(btn);
     expect(api.activateWorkspace).toHaveBeenCalledWith('a');
@@ -40,9 +40,19 @@ describe('Sidebar', () => {
     expect(api.workspaceMenu).toHaveBeenCalledWith('a');
   });
 
+  it('while adding, marks + as current instead of the workspace, and a workspace click leaves it', () => {
+    const onActivate = vi.fn();
+    render(<Sidebar state={state} adding onAdd={() => {}} onActivate={onActivate} />);
+    expect(screen.getByRole('button', { name: 'OCCOS' }).getAttribute('aria-current')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add Nextcloud' }).getAttribute('aria-current')).toBe('page');
+    fireEvent.click(screen.getByRole('button', { name: 'OCCOS' }));
+    expect(api.activateWorkspace).toHaveBeenCalledWith('b');
+    expect(onActivate).toHaveBeenCalled();
+  });
+
   it('calls onAdd from the + button', () => {
     const onAdd = vi.fn();
-    render(<Sidebar state={state} onAdd={onAdd} />);
+    render(<Sidebar state={state} adding={false} onAdd={onAdd} onActivate={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: 'Add Nextcloud' }));
     expect(onAdd).toHaveBeenCalled();
   });

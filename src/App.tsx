@@ -27,7 +27,7 @@ export default function App() {
 
   return (
     <div className="shell">
-      <Sidebar state={state} onAdd={() => setDialog({ kind: 'add' })} />
+      <Sidebar state={state} adding={dialog?.kind === 'add'} onAdd={() => setDialog({ kind: 'add' })} onActivate={close} />
       {/* Adding a server is not about the current workspace: hide its tabs meanwhile. */}
       <TabBar workspace={dialog?.kind === 'add' ? null : active} notice={notice} />
       <main className="content">{content}</main>
