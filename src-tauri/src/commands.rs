@@ -1,11 +1,12 @@
 //! Commands. Shell commands are granted to the `shell` webview only (capabilities/default.json);
 //! `nc_*` bridge commands are granted per workspace origin at runtime (webviews::grant_bridge).
 
-use crate::engine::{Effect, Engine};
+use crate::engine::{AppLink, Effect, Engine};
 use crate::model::AppState;
-use crate::webviews::{engine, run};
+use crate::webviews::{engine, run, tab_of};
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, State, Webview};
+use url::Url;
 use uuid::Uuid;
 
 /// One-shot startup message for the shell (e.g. unreadable workspaces.json).
@@ -82,4 +83,18 @@ pub fn set_overlay(app: AppHandle, on: bool) {
 #[tauri::command]
 pub fn clear_browsing_data(app: AppHandle, ws: Uuid) {
     apply(&app, |e| e.clear_browsing_data(ws));
+}
+
+/// Bridge: main-frame location of a Nextcloud page. The engine checks the URL belongs to the tab's workspace.
+#[tauri::command]
+pub fn nc_report_location(app: AppHandle, webview: Webview, url: String) {
+    let (Some(tab), Ok(url)) = (tab_of(webview.label()), Url::parse(&url)) else { return };
+    apply(&app, |e| e.observe_location(tab, url));
+}
+
+/// Bridge: icon + app menu of a Nextcloud page (untrusted, filtered by the engine).
+#[tauri::command]
+pub fn nc_report_meta(app: AppHandle, webview: Webview, icon: Option<String>, apps: Vec<AppLink>) {
+    let Some(tab) = tab_of(webview.label()) else { return };
+    apply(&app, |e| e.observe_meta(tab, icon, apps));
 }

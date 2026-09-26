@@ -26,6 +26,8 @@ pub fn run() {
             commands::reorder_tabs,
             commands::set_overlay,
             commands::clear_browsing_data,
+            commands::nc_report_location,
+            commands::nc_report_meta,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::MutexGuard;
 use tauri::ipc::CapabilityBuilder;
-use tauri::webview::WebviewBuilder;
+use tauri::webview::{NewWindowResponse, WebviewBuilder};
 use tauri::window::WindowBuilder;
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Webview, WebviewUrl, Window, WindowEvent, Wry,
@@ -24,6 +24,8 @@ pub const SIDEBAR_W: f64 = 68.0;
 pub const TABBAR_H: f64 = 40.0;
 
 type Res = Result<(), Box<dyn Error>>;
+
+const BRIDGE_JS: &str = include_str!("bridge.js");
 
 pub struct EffectTx(pub Sender<Vec<Effect>>);
 pub struct StorePath(pub PathBuf);
@@ -187,8 +189,19 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
         grant_bridge(app, ws, &url)?;
         granted.insert(ws);
     }
-    let nav = app.clone();
-    let builder = WebviewBuilder::new(&label, WebviewUrl::External(url)).on_navigation(move |u| navigation(&nav, u));
+    let (nav, popup, title) = (app.clone(), app.clone(), app.clone());
+    let builder = WebviewBuilder::new(&label, WebviewUrl::External(url))
+        .initialization_script(BRIDGE_JS)
+        .on_navigation(move |u| navigation(&nav, u))
+        .on_new_window(move |u, _features| {
+            let fx = engine(&popup).on_new_window(&u);
+            run(&popup, fx);
+            NewWindowResponse::Deny
+        })
+        .on_document_title_changed(move |_, t| {
+            let fx = engine(&title).observe_title(tab, &t);
+            run(&title, fx);
+        });
     #[cfg(target_os = "macos")]
     let builder = match safari_user_agent() {
         Some(ua) => builder.user_agent(ua),
