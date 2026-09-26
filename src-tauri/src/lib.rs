@@ -1,6 +1,8 @@
 mod commands;
 mod downloads;
 mod engine;
+#[cfg(target_os = "linux")]
+mod media;
 mod menus;
 mod model;
 mod router;

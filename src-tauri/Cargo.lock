@@ -2093,6 +2093,7 @@ dependencies = [
 name = "nc-workspaces"
 version = "0.1.0"
 dependencies = [
+ "glib",
  "percent-encoding",
  "serde",
  "serde_json",
@@ -2102,6 +2103,7 @@ dependencies = [
  "tempfile",
  "url",
  "uuid",
+ "webkit2gtk",
 ]
 
 [[package]]

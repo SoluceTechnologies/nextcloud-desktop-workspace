@@ -211,6 +211,8 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
     let (pos, size) = content_rect(&window)?;
     let webview = window.add_child(with_profile(app, builder, ws)?, pos, size)?;
     webview.hide()?;
+    #[cfg(target_os = "linux")]
+    crate::media::enable(&webview);
     Ok(())
 }
 
