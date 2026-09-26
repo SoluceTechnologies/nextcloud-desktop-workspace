@@ -14,7 +14,10 @@
   },
   "npm": false,
   "hooks": {
-    "before:bump": "cargo set-version --manifest-path src-tauri/Cargo.toml ${version}"
+    "before:bump": [
+      "cargo set-version --manifest-path src-tauri/Cargo.toml ${version}",
+      "npm version ${version} --no-git-tag-version --allow-same-version"
+    ]
   },
   "plugins": {
     "@release-it/conventional-changelog": {
