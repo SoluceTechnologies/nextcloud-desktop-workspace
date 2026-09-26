@@ -102,8 +102,7 @@ jobs:
     needs:
       - create-release
       - build-binaries
-      - publish-apt
-    if: ${{ !cancelled() && needs.build-binaries.result == 'success' && needs.publish-apt.result != 'failure' }}
+    if: ${{ !cancelled() && needs.build-binaries.result == 'success' }}
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.publish_release_step.outputs.release_tag }}
