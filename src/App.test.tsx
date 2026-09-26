@@ -27,6 +27,7 @@ vi.mock('./hooks', () => ({
   useAppState: () => state,
   useTauriEvent: () => {},
   useNotice: () => null,
+  useLoadingTabs: () => new Set(),
 }));
 
 afterEach(cleanup);

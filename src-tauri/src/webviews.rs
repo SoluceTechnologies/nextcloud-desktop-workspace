@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Mutex, MutexGuard};
 use tauri::ipc::CapabilityBuilder;
-use tauri::webview::{NewWindowResponse, WebviewBuilder};
+use tauri::webview::{NewWindowResponse, PageLoadEvent, WebviewBuilder};
 use tauri::window::{Color, WindowBuilder};
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Theme, Webview, WebviewUrl, Window, WindowEvent, Wry,
@@ -180,8 +180,14 @@ fn apply_batch(app: &AppHandle, batch: Vec<Effect>, granted: &mut HashSet<Uuid>)
                 Ok(())
             }
             Effect::Create { ws, tab, url } => create(app, ws, tab, url, granted),
-            Effect::Navigate { ws, tab, url } => with_webview(app, ws, tab, |w| w.navigate(url)),
-            Effect::Reload { ws, tab } => with_webview(app, ws, tab, |w| w.reload()),
+            Effect::Navigate { ws, tab, url } => with_webview(app, ws, tab, |w| {
+                loading(app, tab, true);
+                w.navigate(url)
+            }),
+            Effect::Reload { ws, tab } => with_webview(app, ws, tab, |w| {
+                loading(app, tab, true);
+                w.reload()
+            }),
             Effect::Destroy { ws, tab } => with_webview(app, ws, tab, |w| w.close()),
             Effect::Show { ws, tab } => show_only(app, Some(&label(ws, tab))),
             Effect::HideContent => show_only(app, None),
@@ -249,7 +255,7 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
         grant_bridge(app, ws, &url)?;
         granted.insert(ws);
     }
-    let (nav, popup, title, dl) = (app.clone(), app.clone(), app.clone(), app.clone());
+    let (nav, popup, title, dl, load) = (app.clone(), app.clone(), app.clone(), app.clone(), app.clone());
     let builder = WebviewBuilder::new(&label, WebviewUrl::External(url))
         .initialization_script(BRIDGE_JS)
         .on_navigation(move |u| navigation(&nav, u))
@@ -262,7 +268,8 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
             let fx = engine(&title).observe_title(tab, &t);
             run(&title, fx);
         })
-        .on_download(move |_, event| crate::downloads::handle(&dl, event));
+        .on_download(move |_, event| crate::downloads::handle(&dl, event))
+        .on_page_load(move |_, page| loading(&load, tab, page.event() == PageLoadEvent::Started));
     #[cfg(target_os = "macos")]
     let builder = match safari_user_agent() {
         Some(ua) => builder.user_agent(ua),
@@ -271,9 +278,21 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
     let (pos, size) = content_rect(&window)?;
     let webview = window.add_child(with_profile(app, builder, ws)?, pos, size)?;
     webview.hide()?;
+    loading(app, tab, true);
     #[cfg(target_os = "linux")]
     crate::media::enable(&webview);
     Ok(())
+}
+
+#[derive(Clone, serde::Serialize)]
+struct TabLoading {
+    tab: Uuid,
+    loading: bool,
+}
+
+/// Page loading indicator for the shell's tab bar (runtime only, not in the persisted state).
+fn loading(app: &AppHandle, tab: Uuid, loading: bool) {
+    let _ = app.emit_to("shell", "tab-loading", TabLoading { tab, loading });
 }
 
 /// Builds and validates the `remote` URLPattern for this workspace's bridge capability. Host chars

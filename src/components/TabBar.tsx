@@ -4,7 +4,9 @@ import { CloseIcon, PinIcon, PlusIcon } from '../icons';
 import type { Workspace } from '../types';
 import { move } from '../util';
 
-export function TabBar({ workspace, notice }: { workspace: Workspace | null; notice: ReactNode }) {
+/** `loading`: ids of tabs whose page is loading (spinner in the tab, progress bar for the selected one). */
+export function TabBar(props: { workspace: Workspace | null; loading: Set<string>; notice: ReactNode }) {
+  const { workspace, loading, notice } = props;
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   if (!workspace) return <header className="tabbar">{notice}</header>;
   const ws = workspace.id;
@@ -20,6 +22,7 @@ export function TabBar({ workspace, notice }: { workspace: Workspace | null; not
               role="tab"
               tabIndex={0}
               aria-selected={selected}
+              aria-busy={loading.has(t.id)}
               className={['tab', selected && 'active', t.pinned && 'pinned'].filter(Boolean).join(' ')}
               title={t.title}
               draggable
@@ -41,10 +44,14 @@ export function TabBar({ workspace, notice }: { workspace: Workspace | null; not
                 api.tabMenu(ws, t.id);
               }}
             >
-              {t.pinned && (
-                <span className="pin">
-                  <PinIcon size={12} />
-                </span>
+              {loading.has(t.id) ? (
+                <span className="loader" aria-hidden="true" />
+              ) : (
+                t.pinned && (
+                  <span className="pin">
+                    <PinIcon size={12} />
+                  </span>
+                )
               )}
               <span className="title">{t.title}</span>
               {!t.pinned && (
@@ -67,6 +74,9 @@ export function TabBar({ workspace, notice }: { workspace: Workspace | null; not
         <PlusIcon size={16} />
       </button>
       {notice}
+      {workspace.activeTabId && loading.has(workspace.activeTabId) && (
+        <div className="progress" role="progressbar" aria-label="Loading page" />
+      )}
     </header>
   );
 }
