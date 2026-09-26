@@ -1,0 +1,55 @@
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { api } from '../api';
+import type { Workspace } from '../types';
+import { TabBar } from './TabBar';
+
+vi.mock('../api', () => ({
+  api: { activateTab: vi.fn(), closeTab: vi.fn(), tabMenu: vi.fn(), appsMenu: vi.fn(), reorderTabs: vi.fn() },
+}));
+
+const ws: Workspace = {
+  id: 'w',
+  baseUrl: 'https://a.com/',
+  name: 'A',
+  nameCustom: false,
+  icon: null,
+  apps: [],
+  activeTabId: 't2',
+  tabs: [
+    { id: 't1', appId: 'files', title: 'Files', url: 'https://a.com/apps/files/', pinned: true },
+    { id: 't2', appId: 'deck', title: 'Deck', url: 'https://a.com/apps/deck/', pinned: false },
+  ],
+};
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
+describe('TabBar', () => {
+  it('renders tabs with selection and close buttons only for unpinned tabs', () => {
+    render(<TabBar workspace={ws} notice={null} />);
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+    expect(screen.queryByRole('button', { name: 'Close Files' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Close Deck' })).toBeTruthy();
+  });
+
+  it('closing does not also activate', () => {
+    render(<TabBar workspace={ws} notice={null} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Close Deck' }));
+    expect(api.closeTab).toHaveBeenCalledWith('w', 't2');
+    expect(api.activateTab).not.toHaveBeenCalled();
+  });
+
+  it('activates on click, opens tab menu on right click, app picker on +', () => {
+    render(<TabBar workspace={ws} notice={null} />);
+    const files = screen.getAllByRole('tab')[0];
+    fireEvent.click(files);
+    expect(api.activateTab).toHaveBeenCalledWith('w', 't1');
+    fireEvent.contextMenu(files);
+    expect(api.tabMenu).toHaveBeenCalledWith('w', 't1');
+    fireEvent.click(screen.getByRole('button', { name: 'Open app' }));
+    expect(api.appsMenu).toHaveBeenCalledWith('w');
+  });
+});
