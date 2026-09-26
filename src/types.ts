@@ -10,4 +10,5 @@ export type Workspace = {
   tabs: Tab[];
   activeTabId: string | null;
 };
-export type AppState = { version: number; workspaces: Workspace[]; activeWorkspaceId: string | null };
+export type Appearance = 'system' | 'light' | 'dark';
+export type AppState = { version: number; workspaces: Workspace[]; activeWorkspaceId: string | null; theme: Appearance };

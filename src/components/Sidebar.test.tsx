@@ -5,12 +5,13 @@ import type { AppState } from '../types';
 import { Sidebar } from './Sidebar';
 
 vi.mock('../api', () => ({
-  api: { activateWorkspace: vi.fn(), workspaceMenu: vi.fn(), reorderWorkspaces: vi.fn() },
+  api: { activateWorkspace: vi.fn(), workspaceMenu: vi.fn(), reorderWorkspaces: vi.fn(), setTheme: vi.fn() },
 }));
 
 const state: AppState = {
   version: 1,
   activeWorkspaceId: 'b',
+  theme: 'dark',
   workspaces: [
     { id: 'a', baseUrl: 'https://cloud.soluce.com/', name: 'cloud.soluce.com', nameCustom: false, icon: null, apps: [], tabs: [], activeTabId: null },
     { id: 'b', baseUrl: 'https://occos.fr/', name: 'OCCOS', nameCustom: true, icon: 'data:image/png;base64,AAAA', apps: [], tabs: [], activeTabId: null },
@@ -48,6 +49,14 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OCCOS' }));
     expect(api.activateWorkspace).toHaveBeenCalledWith('b');
     expect(onActivate).toHaveBeenCalled();
+  });
+
+  it('shows the chosen appearance and changes it', () => {
+    render(<Sidebar state={state} adding={false} onAdd={() => {}} onActivate={() => {}} />);
+    expect(screen.getByRole('radio', { name: 'Dark' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: 'System' }).getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(screen.getByRole('radio', { name: 'Light' }));
+    expect(api.setTheme).toHaveBeenCalledWith('light');
   });
 
   it('calls onAdd from the + button', () => {

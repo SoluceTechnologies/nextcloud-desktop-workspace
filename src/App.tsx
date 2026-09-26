@@ -20,16 +20,17 @@ export default function App() {
   const active = state.workspaces.find((w) => w.id === state.activeWorkspaceId) ?? null;
   const close = () => setDialog(null);
 
+  // Adding a server or the first run has no tabs to show: no tab bar, the page uses the full height.
+  const bare = dialog?.kind === 'add' || state.workspaces.length === 0;
   let content: ReactNode = null;
   if (dialog) content = <DialogView dialog={dialog} state={state} onClose={close} />;
   else if (state.workspaces.length === 0) content = <AddForm />;
   else if (active && active.tabs.length === 0) content = <EmptyWorkspace ws={active.id} />;
 
   return (
-    <div className="shell">
+    <div className={bare ? 'shell bare' : 'shell'}>
       <Sidebar state={state} adding={dialog?.kind === 'add'} onAdd={() => setDialog({ kind: 'add' })} onActivate={close} />
-      {/* Adding a server is not about the current workspace: hide its tabs meanwhile. */}
-      <TabBar workspace={dialog?.kind === 'add' ? null : active} notice={notice} />
+      {!bare && <TabBar workspace={active} notice={notice} />}
       <main className="content">{content}</main>
     </div>
   );

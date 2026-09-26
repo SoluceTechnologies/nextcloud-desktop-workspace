@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { AppState } from './types';
+import type { AppState, Appearance } from './types';
 
 export const api = {
   getState: () => invoke<AppState>('get_state'),
@@ -14,6 +14,7 @@ export const api = {
   reorderTabs: (ws: string, ids: string[]) => invoke<void>('reorder_tabs', { ws, ids }),
   setOverlay: (on: boolean) => invoke<void>('set_overlay', { on }),
   clearBrowsingData: (ws: string) => invoke<void>('clear_browsing_data', { ws }),
+  setTheme: (theme: Appearance) => invoke<void>('set_theme', { theme }),
   workspaceMenu: (ws: string) => invoke<void>('workspace_menu', { ws }),
   tabMenu: (ws: string, tab: string) => invoke<void>('tab_menu', { ws, tab }),
   appsMenu: (ws: string) => invoke<void>('apps_menu', { ws }),

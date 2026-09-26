@@ -14,12 +14,24 @@ pub struct AppState {
     pub version: u32,
     pub workspaces: Vec<Workspace>,
     pub active_workspace_id: Option<Uuid>,
+    /// Window appearance chosen in the sidebar; Nextcloud pages follow it too (prefers-color-scheme).
+    #[serde(default)]
+    pub theme: Appearance,
 }
 
 impl Default for AppState {
     fn default() -> Self {
-        Self { version: 1, workspaces: Vec::new(), active_workspace_id: None }
+        Self { version: 1, workspaces: Vec::new(), active_workspace_id: None, theme: Appearance::System }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Appearance {
+    #[default]
+    System,
+    Light,
+    Dark,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -156,5 +168,13 @@ mod tests {
         assert!(json.contains("\"appId\":\"AUTH\""));
         let back: AppState = serde_json::from_str(&json).unwrap();
         assert_eq!(back, s);
+    }
+
+    #[test]
+    fn appearance_defaults_to_system_and_serializes_lowercase() {
+        let old: AppState = serde_json::from_str(r#"{"version":1,"workspaces":[],"activeWorkspaceId":null}"#).unwrap();
+        assert_eq!(old.theme, Appearance::System);
+        let s = AppState { theme: Appearance::Dark, ..AppState::default() };
+        assert!(serde_json::to_string(&s).unwrap().contains(r#""theme":"dark""#));
     }
 }

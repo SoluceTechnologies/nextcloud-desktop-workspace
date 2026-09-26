@@ -8,6 +8,7 @@ vi.mock('./api', () => ({ api: new Proxy({}, { get: () => vi.fn(() => Promise.re
 const state: AppState = {
   version: 1,
   activeWorkspaceId: 'w',
+  theme: 'system',
   workspaces: [
     {
       id: 'w',
@@ -36,6 +37,7 @@ describe('App', () => {
     expect(screen.getAllByRole('tab')).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Add Nextcloud' }));
     expect(screen.queryAllByRole('tab')).toHaveLength(0);
+    expect(screen.queryByRole('banner')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.getAllByRole('tab')).toHaveLength(1);
   });

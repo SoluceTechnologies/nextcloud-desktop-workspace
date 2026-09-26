@@ -3,7 +3,7 @@
 
 use crate::engine::{AppLink, Effect, Engine};
 use crate::menus;
-use crate::model::AppState;
+use crate::model::{AppState, Appearance};
 use crate::webviews::{self, engine, run, tab_of, Fullscreen};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State, Webview};
@@ -85,6 +85,11 @@ pub fn set_overlay(app: AppHandle, on: bool) {
 #[tauri::command]
 pub fn clear_browsing_data(app: AppHandle, ws: Uuid) {
     apply(&app, |e| e.clear_browsing_data(ws));
+}
+
+#[tauri::command]
+pub fn set_theme(app: AppHandle, theme: Appearance) {
+    apply(&app, |e| e.set_theme(theme));
 }
 
 /// Bridge: main-frame location of a Nextcloud page. The engine checks the URL belongs to the tab's workspace.

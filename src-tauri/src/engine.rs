@@ -1,7 +1,7 @@
 //! Every state mutation (spec §5–§7). Pure: ops return `Effect`s for the webview executor
 //! (`webviews.rs`) and never touch Tauri, so the lock is never held during webview calls.
 
-use crate::model::{AppEntry, AppState, Tab, Workspace, AUTH};
+use crate::model::{AppEntry, AppState, Appearance, Tab, Workspace, AUTH};
 use crate::router::{self, Route};
 use crate::urls;
 use std::collections::HashSet;
@@ -37,6 +37,8 @@ pub enum Effect {
     OpenExternal(Url),
     /// Clear the workspace profile's browsing data; `delete` also removes the profile directory.
     ClearProfile { ws: Uuid, delete: bool },
+    /// Apply the window appearance (light, dark or follow the system).
+    Theme(Appearance),
     /// State changed: emit a snapshot to the shell and save to disk.
     Changed,
 }
@@ -52,6 +54,11 @@ pub struct Engine {
 impl Engine {
     pub fn new(state: AppState, max_live: usize) -> Self {
         Self { state, live: Vec::new(), overlay: false, max_live }
+    }
+
+    pub fn set_theme(&mut self, theme: Appearance) -> Vec<Effect> {
+        self.state.theme = theme;
+        vec![Effect::Theme(theme), Effect::Changed]
     }
 
     pub fn is_live(&self, tab: Uuid) -> bool {
@@ -591,6 +598,13 @@ mod tests {
         assert_eq!(destroyed(&fx), vec![auth]);
         assert!(!e.is_live(auth));
         assert_eq!(created(&e.activate_tab(w, auth)), vec![auth]);
+    }
+
+    #[test]
+    fn set_theme_saves_and_applies_it() {
+        let mut e = engine_with(&[], MAX_LIVE);
+        assert_eq!(e.set_theme(Appearance::Dark), vec![Effect::Theme(Appearance::Dark), Effect::Changed]);
+        assert_eq!(e.state.theme, Appearance::Dark);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent } from 'react';
 import { api } from '../api';
-import { AlertIcon, AppsIcon, CloudIcon, GlobeIcon } from '../icons';
+import { AlertIcon } from '../icons';
 import type { AppState, Workspace } from '../types';
 
 /** Dialog requests: `add` from the sidebar, the others from native menus (`ui-request` event). */
@@ -24,7 +24,7 @@ export function AddForm({ onDone }: { onDone?: () => void }) {
   const welcome = !onDone;
   return (
     <form
-      className={welcome ? 'card welcome' : 'card'}
+      className={welcome ? 'sheet welcome' : 'sheet'}
       onKeyDown={onDone ? onEscape(onDone) : undefined}
       onSubmit={async (e) => {
         e.preventDefault();
@@ -40,22 +40,15 @@ export function AddForm({ onDone }: { onDone?: () => void }) {
         }
       }}
     >
-      <div className="card-head">
-        <div className="brand-mark">
-          <CloudIcon size={26} />
-        </div>
-        <h1>{welcome ? 'Welcome to NC Workspaces' : 'Add a Nextcloud server'}</h1>
-        <p className="lede">
-          {welcome
-            ? 'Connect your first Nextcloud server. You can add more later from the sidebar.'
-            : 'Enter the address you use to open Nextcloud in your browser.'}
-        </p>
-      </div>
+      <h1>{welcome ? 'Connect to Nextcloud' : 'Add a server'}</h1>
+      <p className="lede">
+        The address of your Nextcloud server. You sign in on the next screen
+        {welcome ? '; more servers can be added later from the sidebar.' : '.'}
+      </p>
       <label className="field-label" htmlFor="server-url">
         Server address
       </label>
       <div className={error ? 'field invalid' : 'field'}>
-        <GlobeIcon />
         <input
           id="server-url"
           autoFocus
@@ -103,17 +96,15 @@ function RenameForm({ ws, onDone }: { ws: Workspace; onDone: () => void }) {
   const [name, setName] = useState(ws.name);
   return (
     <form
-      className="card"
+      className="sheet"
       onKeyDown={onEscape(onDone)}
       onSubmit={(e) => {
         e.preventDefault();
         api.renameWorkspace(ws.id, name).then(onDone);
       }}
     >
-      <div className="card-head left">
-        <h1>Rename workspace</h1>
-        <p className="lede">Leave empty to use the name shown by the server.</p>
-      </div>
+      <h1>Rename workspace</h1>
+      <p className="lede">Leave empty to use the name shown by the server.</p>
       <label className="field-label" htmlFor="ws-name">
         Name
       </label>
@@ -134,14 +125,9 @@ function RenameForm({ ws, onDone }: { ws: Workspace; onDone: () => void }) {
 
 function Confirm(props: { title: string; body: string; action: string; onConfirm: () => Promise<void>; onDone: () => void }) {
   return (
-    <div className="card" role="alertdialog" aria-labelledby="confirm-title" onKeyDown={onEscape(props.onDone)}>
-      <div className="card-head left">
-        <div className="confirm-icon">
-          <AlertIcon size={20} />
-        </div>
-        <h1 id="confirm-title">{props.title}</h1>
-        <p className="lede">{props.body}</p>
-      </div>
+    <div className="sheet" role="alertdialog" aria-labelledby="confirm-title" onKeyDown={onEscape(props.onDone)}>
+      <h1 id="confirm-title">{props.title}</h1>
+      <p className="lede">{props.body}</p>
       <div className="actions">
         <button type="button" className="btn ghost" autoFocus onClick={props.onDone}>
           Cancel
@@ -200,9 +186,6 @@ export function DialogView({ dialog, state, onClose }: { dialog: Dialog; state: 
 export function EmptyWorkspace({ ws }: { ws: string }) {
   return (
     <div className="empty">
-      <div className="empty-icon">
-        <AppsIcon size={26} />
-      </div>
       <h2>No open tabs</h2>
       <p>Open a Nextcloud app to start working in this workspace.</p>
       <button className="btn primary" onClick={() => api.appsMenu(ws)}>

@@ -14,6 +14,7 @@ fn main() {
             "reorder_tabs",
             "set_overlay",
             "clear_browsing_data",
+            "set_theme",
             "workspace_menu",
             "tab_menu",
             "apps_menu",

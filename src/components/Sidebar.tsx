@@ -1,8 +1,14 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { api } from '../api';
-import { PlusIcon } from '../icons';
-import type { AppState } from '../types';
+import { MonitorIcon, MoonIcon, PlusIcon, SunIcon } from '../icons';
+import type { AppState, Appearance } from '../types';
 import { hue, initials, move } from '../util';
+
+const APPEARANCES: { value: Appearance; label: string; icon: ReactNode }[] = [
+  { value: 'system', label: 'System', icon: <MonitorIcon size={15} /> },
+  { value: 'light', label: 'Light', icon: <SunIcon size={15} /> },
+  { value: 'dark', label: 'Dark', icon: <MoonIcon size={15} /> },
+];
 
 /** `adding`: the Add view is open, so `+` is the current item; clicking a workspace leaves it (`onActivate`). */
 export function Sidebar(props: { state: AppState; adding: boolean; onAdd: () => void; onActivate: () => void }) {
@@ -60,6 +66,20 @@ export function Sidebar(props: { state: AppState; adding: boolean; onAdd: () => 
         >
           <PlusIcon size={18} />
         </button>
+      </div>
+      <div className="appearance" role="radiogroup" aria-label="Appearance">
+        {APPEARANCES.map((a) => (
+          <button
+            key={a.value}
+            role="radio"
+            aria-checked={state.theme === a.value}
+            aria-label={a.label}
+            title={a.label}
+            onClick={() => api.setTheme(a.value)}
+          >
+            {a.icon}
+          </button>
+        ))}
       </div>
     </nav>
   );

@@ -2,7 +2,7 @@
 //! per-workspace profiles, and the per-origin bridge capability.
 
 use crate::engine::{Effect, Engine, Shared};
-use crate::model::AppState;
+use crate::model::{AppState, Appearance};
 use crate::router::{self, Route};
 use crate::store;
 use std::collections::HashSet;
@@ -71,8 +71,10 @@ pub fn tab_of(label: &str) -> Option<Uuid> {
 
 /// Main window: no own webview; the React shell is a full-size child, content webviews go on top of it.
 pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
+    let appearance = engine(app).state.theme;
     let builder = WindowBuilder::new(app, "main")
         .title("NC Workspaces")
+        .theme(window_theme(appearance))
         .inner_size(1280.0, 800.0)
         .min_inner_size(800.0, 500.0);
     // Tauri's default macOS style (`Visible`) turns on fullsize_content_view: the content view then runs
@@ -96,6 +98,22 @@ pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
         WindowEvent::ThemeChanged(theme) => paint_chrome(&w, *theme),
         _ => {}
     });
+    Ok(())
+}
+
+fn window_theme(appearance: Appearance) -> Option<Theme> {
+    match appearance {
+        Appearance::System => None,
+        Appearance::Light => Some(Theme::Light),
+        Appearance::Dark => Some(Theme::Dark),
+    }
+}
+
+/// The window's appearance drives prefers-color-scheme in every webview: the shell and Nextcloud pages.
+fn apply_theme(app: &AppHandle, appearance: Appearance) -> Res {
+    let window = main_window(app)?;
+    window.set_theme(window_theme(appearance))?;
+    paint_chrome(&window, window.theme()?);
     Ok(())
 }
 
@@ -169,6 +187,7 @@ fn apply_batch(app: &AppHandle, batch: Vec<Effect>, granted: &mut HashSet<Uuid>)
             Effect::HideContent => show_only(app, None),
             Effect::OpenExternal(url) => open_external(app, &url),
             Effect::ClearProfile { ws, delete } => clear_profile(app, ws, delete),
+            Effect::Theme(appearance) => apply_theme(app, appearance),
         };
         if let Err(err) = result {
             eprintln!("[ncw] effect failed: {err}");

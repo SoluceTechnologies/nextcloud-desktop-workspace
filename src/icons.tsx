@@ -39,13 +39,6 @@ export const PinIcon = (p: P) => (
   </Icon>
 );
 
-export const GlobeIcon = (p: P) => (
-  <Icon {...p}>
-    <circle cx="12" cy="12" r="9" />
-    <path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z" />
-  </Icon>
-);
-
 export const AlertIcon = (p: P) => (
   <Icon {...p}>
     <path d="M12 9v4M12 17h.01" />
@@ -53,17 +46,22 @@ export const AlertIcon = (p: P) => (
   </Icon>
 );
 
-export const CloudIcon = (p: P) => (
+export const SunIcon = (p: P) => (
   <Icon {...p}>
-    <path d="M7 18.5a4.5 4.5 0 0 1-.4-9 6 6 0 0 1 11.5 1.5A4 4 0 0 1 17.5 18.5z" />
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4" />
   </Icon>
 );
 
-export const AppsIcon = (p: P) => (
+export const MoonIcon = (p: P) => (
   <Icon {...p}>
-    <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
-    <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
-    <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
-    <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+    <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+  </Icon>
+);
+
+export const MonitorIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="3" y="4.5" width="18" height="12" rx="2" />
+    <path d="M9 20h6M12 16.5V20" />
   </Icon>
 );

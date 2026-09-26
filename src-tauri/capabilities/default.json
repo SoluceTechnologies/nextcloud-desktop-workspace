@@ -17,6 +17,7 @@
     "allow-reorder-tabs",
     "allow-set-overlay",
     "allow-clear-browsing-data",
+    "allow-set-theme",
     "allow-workspace-menu",
     "allow-tab-menu",
     "allow-apps-menu",
