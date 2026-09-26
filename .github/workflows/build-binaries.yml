@@ -11,6 +11,16 @@ on:
         description: "Release identifier (draft tag) to upload assets to"
         required: true
         type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Existing version tag to build (e.g. 1.3.0)"
+        required: true
+        type: string
+      ref:
+        description: "Release to upload the installers to (tag, or untagged-… for a draft)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -51,11 +61,11 @@ jobs:
             target: aarch64-unknown-linux-gnu
             bundles: deb,rpm,appimage
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.version }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -88,17 +98,19 @@ jobs:
           shopt -s nullglob
           BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
           NAME="$APP-${{ matrix.target }}"
-          mkdir -p dist
+          mkdir -p installers
           for f in "$BUNDLE"/dmg/*.dmg "$BUNDLE"/nsis/*.exe "$BUNDLE"/msi/*.msi \
                    "$BUNDLE"/deb/*.deb "$BUNDLE"/rpm/*.rpm "$BUNDLE"/appimage/*.AppImage; do
-            cp "$f" "dist/$NAME.${f##*.}"
+            cp "$f" "installers/$NAME.${f##*.}"
           done
-          cd dist
-          for f in *; do shasum -a 256 "$f" | awk '{print $1}' > "$f.sha256"; done
+          SHA="sha256sum"
+          command -v sha256sum >/dev/null || SHA="shasum -a 256"
+          cd installers
+          for f in *; do $SHA "$f" | awk '{print $1}' > "$f.sha256"; done
           ls -l
 
       - name: Upload to release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ inputs.ref }}" dist/* --clobber
+        run: gh release upload "${{ inputs.ref }}" installers/* --clobber
