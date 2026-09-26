@@ -4,16 +4,16 @@ All your Nextcloud servers in one desktop app. Each server is a workspace in the
 
 ## Download
 
-The buttons download the installer from the [latest release](https://github.com/OWNER/REPO/releases/latest).
+The buttons download the installer from the [latest release](https://github.com/SoluceTechnologies/nextcloud-desktop-workspace/releases/latest).
 
 | Platform | Download |
 |---|---|
-| macOS · Apple Silicon | [![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-0082C9?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/OWNER/REPO/releases/latest/download/nextcloud-workspace-aarch64-apple-darwin.dmg) |
-| macOS · Intel | [![macOS Intel](https://img.shields.io/badge/macOS-Intel-0082C9?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/OWNER/REPO/releases/latest/download/nextcloud-workspace-x86_64-apple-darwin.dmg) |
-| Windows · x64 | [![Windows x64](https://img.shields.io/badge/Windows-x64-0082C9?style=for-the-badge)](https://github.com/OWNER/REPO/releases/latest/download/nextcloud-workspace-x86_64-pc-windows-msvc.exe) [![Windows x64 MSI](https://img.shields.io/badge/Windows-x64%20MSI-0082C9?style=for-the-badge)](https://github.com/OWNER/REPO/releases/latest/download/nextcloud-workspace-x86_64-pc-windows-msvc.msi) |
-| Windows · ARM64 | [![Windows ARM64](https://img.shields.io/badge/Windows-ARM64-0082C9?style=for-the-badge)](https://github.com/OWNER/REPO/releases/latest/download/nextcloud-workspace-aarch64-pc-windows-msvc.exe) |
-| Linux · x64 | [![Linux x64 AppImage](https://img.shields.io/badge/Linux-AppImage-0082C9?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/OWNER/REPO/releases/latest/download/nextcloud-workspace-x86_64-unknown-linux-gnu.AppImage) [![Linux x64 deb](https://img.shields.io/badge/.deb-x64-0082C9?style=for-the-badge&logo=debian&logoColor=white)](https://github.com/OWNER/REPO/releases/latest/download/nextcloud-workspace-x86_64-unknown-linux-gnu.deb) [![Linux x64 rpm](https://img.shields.io/badge/.rpm-x64-0082C9?style=for-the-badge&logo=fedora&logoColor=white)](https://github.com/OWNER/REPO/releases/latest/download/nextcloud-workspace-x86_64-unknown-linux-gnu.rpm) |
-| Linux · ARM64 | [![Linux ARM64 AppImage](https://img.shields.io/badge/Linux-AppImage-0082C9?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/OWNER/REPO/releases/latest/download/nextcloud-workspace-aarch64-unknown-linux-gnu.AppImage) [![Linux ARM64 deb](https://img.shields.io/badge/.deb-ARM64-0082C9?style=for-the-badge&logo=debian&logoColor=white)](https://github.com/OWNER/REPO/releases/latest/download/nextcloud-workspace-aarch64-unknown-linux-gnu.deb) [![Linux ARM64 rpm](https://img.shields.io/badge/.rpm-ARM64-0082C9?style=for-the-badge&logo=fedora&logoColor=white)](https://github.com/OWNER/REPO/releases/latest/download/nextcloud-workspace-aarch64-unknown-linux-gnu.rpm) |
+| macOS · Apple Silicon | [![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-0082C9?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/SoluceTechnologies/nextcloud-desktop-workspace/releases/latest/download/nextcloud-workspace-aarch64-apple-darwin.dmg) |
+| macOS · Intel | [![macOS Intel](https://img.shields.io/badge/macOS-Intel-0082C9?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/SoluceTechnologies/nextcloud-desktop-workspace/releases/latest/download/nextcloud-workspace-x86_64-apple-darwin.dmg) |
+| Windows · x64 | [![Windows x64](https://img.shields.io/badge/Windows-x64-0082C9?style=for-the-badge)](https://github.com/SoluceTechnologies/nextcloud-desktop-workspace/releases/latest/download/nextcloud-workspace-x86_64-pc-windows-msvc.exe) [![Windows x64 MSI](https://img.shields.io/badge/Windows-x64%20MSI-0082C9?style=for-the-badge)](https://github.com/SoluceTechnologies/nextcloud-desktop-workspace/releases/latest/download/nextcloud-workspace-x86_64-pc-windows-msvc.msi) |
+| Windows · ARM64 | [![Windows ARM64](https://img.shields.io/badge/Windows-ARM64-0082C9?style=for-the-badge)](https://github.com/SoluceTechnologies/nextcloud-desktop-workspace/releases/latest/download/nextcloud-workspace-aarch64-pc-windows-msvc.exe) |
+| Linux · x64 | [![Linux x64 AppImage](https://img.shields.io/badge/Linux-AppImage-0082C9?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/SoluceTechnologies/nextcloud-desktop-workspace/releases/latest/download/nextcloud-workspace-x86_64-unknown-linux-gnu.AppImage) [![Linux x64 deb](https://img.shields.io/badge/.deb-x64-0082C9?style=for-the-badge&logo=debian&logoColor=white)](https://github.com/SoluceTechnologies/nextcloud-desktop-workspace/releases/latest/download/nextcloud-workspace-x86_64-unknown-linux-gnu.deb) [![Linux x64 rpm](https://img.shields.io/badge/.rpm-x64-0082C9?style=for-the-badge&logo=fedora&logoColor=white)](https://github.com/SoluceTechnologies/nextcloud-desktop-workspace/releases/latest/download/nextcloud-workspace-x86_64-unknown-linux-gnu.rpm) |
+| Linux · ARM64 | [![Linux ARM64 AppImage](https://img.shields.io/badge/Linux-AppImage-0082C9?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/SoluceTechnologies/nextcloud-desktop-workspace/releases/latest/download/nextcloud-workspace-aarch64-unknown-linux-gnu.AppImage) [![Linux ARM64 deb](https://img.shields.io/badge/.deb-ARM64-0082C9?style=for-the-badge&logo=debian&logoColor=white)](https://github.com/SoluceTechnologies/nextcloud-desktop-workspace/releases/latest/download/nextcloud-workspace-aarch64-unknown-linux-gnu.deb) [![Linux ARM64 rpm](https://img.shields.io/badge/.rpm-ARM64-0082C9?style=for-the-badge&logo=fedora&logoColor=white)](https://github.com/SoluceTechnologies/nextcloud-desktop-workspace/releases/latest/download/nextcloud-workspace-aarch64-unknown-linux-gnu.rpm) |
 
 - **Linux:** the AppImage runs on most distributions, Arch Linux included (`chmod +x` it, then run it). Use the `.deb` on Debian and Ubuntu, the `.rpm` on Fedora and openSUSE.
 - **Not signed yet:** on first launch, macOS asks for confirmation (right-click the app → **Open**) and Windows shows SmartScreen (**More info** → **Run anyway**).
@@ -55,6 +55,10 @@ npx tauri build
 ## Releases
 
 Merging a pull request into `main` publishes a release: the version comes from the conventional commits, installers are built for every platform above and attached to the GitHub release. Put `[skip-release]` in the pull request title to merge without releasing.
+
+## License
+
+[GNU General Public License v3.0](LICENSE)
 
 ## Disclaimer
 
