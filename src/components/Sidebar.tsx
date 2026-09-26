@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { api } from '../api';
 import { MonitorIcon, MoonIcon, PlusIcon, SunIcon } from '../icons';
 import type { AppState, Appearance } from '../types';
-import { hue, initials, move } from '../util';
+import { initials, move } from '../util';
 
 const APPEARANCES: { value: Appearance; label: string; icon: ReactNode }[] = [
   { value: 'system', label: 'System', icon: <MonitorIcon size={15} /> },
@@ -46,7 +46,7 @@ export function Sidebar(props: { state: AppState; adding: boolean; onAdd: () => 
                 {w.icon ? (
                   <img src={w.icon} alt="" draggable={false} />
                 ) : (
-                  <span className="initials" style={{ background: `hsl(${hue(w.id)} 52% 44%)` }}>
+                  <span className="initials">
                     {initials(w.name)}
                   </span>
                 )}
