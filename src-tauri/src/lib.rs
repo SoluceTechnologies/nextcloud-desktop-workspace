@@ -1,5 +1,6 @@
 mod model;
 mod urls;
+mod router;
 mod webviews;
 
 pub fn run() {
