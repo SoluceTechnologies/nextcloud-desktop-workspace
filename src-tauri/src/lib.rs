@@ -31,7 +31,9 @@ pub fn run() {
             let handle = app.handle().clone();
             let store_path = app.path().app_config_dir()?.join("workspaces.json");
             let (state, notice) = store::load(&store_path);
-            webviews::sweep_profiles(&handle, &state);
+            // An unreadable workspaces.json loads an empty recovery state (see store::load); sweeping
+            // profiles against it would delete every still-live profile, so skip the sweep entirely.
+            let sweep_state = notice.is_none().then(|| state.clone());
             let mut engine = Engine::new(state, MAX_LIVE);
             let startup = engine.startup();
             let (tx, rx) = mpsc::channel();
@@ -40,7 +42,7 @@ pub fn run() {
             app.manage(webviews::StorePath(store_path));
             app.manage(webviews::EffectTx(tx));
             webviews::create_main_window(&handle)?;
-            webviews::spawn_worker(handle.clone(), rx);
+            webviews::spawn_worker(handle.clone(), rx, sweep_state);
             webviews::run(&handle, startup);
             Ok(())
         })

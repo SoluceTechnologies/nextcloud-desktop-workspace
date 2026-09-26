@@ -28,6 +28,12 @@ pub fn take_notice(notice: State<'_, Notice>) -> Option<String> {
 
 #[tauri::command]
 pub fn add_workspace(app: AppHandle, url: String) -> Result<(), String> {
+    // Refuse up front an address whose bridge capability can't be built: `webviews::grant_bridge` only
+    // runs on the first `Create`, where the failure would leave a workspace whose tabs never load.
+    let base = crate::urls::normalize(&url)?;
+    if crate::webviews::bridge_pattern(&base).is_err() {
+        return Err("This server address is not supported".into());
+    }
     let fx = engine(&app).add_workspace(&url)?;
     run(&app, fx);
     Ok(())

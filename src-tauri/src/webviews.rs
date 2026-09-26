@@ -40,8 +40,15 @@ pub fn run(app: &AppHandle, fx: Vec<Effect>) {
 }
 
 /// Single worker: applies effect batches in order, off the main thread and outside the engine lock.
-pub fn spawn_worker(app: AppHandle, rx: Receiver<Vec<Effect>>) {
+/// `sweep_state`, when present, triggers `sweep_profiles` first (skipped when `workspaces.json` failed
+/// to load: the caller passes `None` rather than sweep against an empty recovery state, which would
+/// delete every live profile). Run here, not in `setup`, because the macOS data-store calls need the
+/// main thread's event loop pumping, which it isn't yet during `setup`.
+pub fn spawn_worker(app: AppHandle, rx: Receiver<Vec<Effect>>, sweep_state: Option<AppState>) {
     std::thread::spawn(move || {
+        if let Some(state) = sweep_state {
+            sweep_profiles(&app, &state);
+        }
         let mut granted = HashSet::new();
         for batch in rx {
             apply_batch(&app, batch, &mut granted);
@@ -176,8 +183,9 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
         return Ok(());
     }
     let window = main_window(app)?;
-    if granted.insert(ws) {
+    if !granted.contains(&ws) {
         grant_bridge(app, ws, &url)?;
+        granted.insert(ws);
     }
     let nav = app.clone();
     let builder = WebviewBuilder::new(&label, WebviewUrl::External(url)).on_navigation(move |u| navigation(&nav, u));
@@ -192,11 +200,31 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
     Ok(())
 }
 
+/// Builds and validates the `remote` URLPattern for this workspace's bridge capability. Host chars
+/// that are URLPattern syntax (`:` in IPv6 literals; `*`, `+`, `(`… which WHATWG allows in domains)
+/// are escaped so they match literally. Tauri's ACL resolver (`Resolved::resolve`, called from
+/// `Manager::add_capability`) panics on an unparsable pattern, poisoning the ACL mutex and crashing
+/// the app, so the pattern is also parsed here with the same parser to turn any leftover case into `Err`.
+pub fn bridge_pattern(url: &Url) -> Result<String, String> {
+    let mut host = String::new();
+    for c in url.host_str().unwrap_or_default().chars() {
+        if ":*(){}+?\\".contains(c) {
+            host.push('\\');
+        }
+        host.push(c);
+    }
+    let port = url.port().map(|p| format!(":{p}")).unwrap_or_default();
+    let pattern = format!("{}://{host}{port}/*", url.scheme());
+    pattern.parse::<tauri::utils::acl::RemoteUrlPattern>().map_err(|e| e.to_string())?;
+    Ok(pattern)
+}
+
 /// Pages of this workspace's origin, in this workspace's webviews only, may call the report-only bridge.
 fn grant_bridge(app: &AppHandle, ws: Uuid, url: &Url) -> Res {
+    let pattern = bridge_pattern(url)?;
     app.add_capability(
         CapabilityBuilder::new(format!("nc-{}", ws.simple()))
-            .remote(format!("{}/*", url.origin().ascii_serialization()))
+            .remote(pattern)
             .webview(format!("ws-{}-t-*", ws.simple()))
             .local(false)
             .permission("allow-nc-report-location")
@@ -254,29 +282,67 @@ fn safari_user_agent() -> Option<&'static str> {
     .as_deref()
 }
 
+#[cfg(not(target_os = "macos"))]
 fn profiles_root(app: &AppHandle) -> tauri::Result<PathBuf> {
     Ok(app.path().app_data_dir()?.join("profiles"))
 }
 
+#[cfg(not(target_os = "macos"))]
 fn profile_dir(app: &AppHandle, ws: Uuid) -> tauri::Result<PathBuf> {
     Ok(profiles_root(app)?.join(ws.simple().to_string()))
 }
 
 /// Deletes profile directories of workspaces that no longer exist (a delete can fail while
-/// WebView2 still holds the files; this retries at next launch). No-op on macOS.
+/// WebView2 still holds the files; this retries at next launch). On macOS, sweeps orphaned
+/// WKWebsiteDataStores instead (spec §7.1).
 pub fn sweep_profiles(app: &AppHandle, state: &AppState) {
-    let Ok(root) = profiles_root(app) else { return };
-    let Ok(entries) = std::fs::read_dir(root) else { return };
-    let keep: HashSet<String> = state.workspaces.iter().map(|w| w.id.simple().to_string()).collect();
-    for entry in entries.flatten() {
-        if !keep.contains(entry.file_name().to_string_lossy().as_ref()) {
-            let _ = std::fs::remove_dir_all(entry.path());
+    #[cfg(target_os = "macos")]
+    {
+        sweep_data_stores(app, state);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let Ok(root) = profiles_root(app) else { return };
+        let Ok(entries) = std::fs::read_dir(root) else { return };
+        let keep: HashSet<String> = state.workspaces.iter().map(|w| w.id.simple().to_string()).collect();
+        for entry in entries.flatten() {
+            if !keep.contains(entry.file_name().to_string_lossy().as_ref()) {
+                let _ = std::fs::remove_dir_all(entry.path());
+            }
+        }
+    }
+}
+
+/// Removes every WKWebsiteDataStore whose identifier isn't a current workspace id: orphaned by a
+/// `remove_workspace` whose `remove_data_store` call didn't make it to disk (e.g. a crash), or by
+/// workspaces removed from `workspaces.json` by hand.
+#[cfg(target_os = "macos")]
+fn sweep_data_stores(app: &AppHandle, state: &AppState) {
+    let keep: HashSet<Uuid> = state.workspaces.iter().map(|w| w.id).collect();
+    let ids = match tauri::async_runtime::block_on(app.fetch_data_store_identifiers()) {
+        Ok(ids) => ids,
+        Err(err) => {
+            eprintln!("[ncw] fetch_data_store_identifiers failed: {err}");
+            return;
+        }
+    };
+    for id in ids {
+        if !keep.contains(&Uuid::from_bytes(id)) {
+            if let Err(err) = tauri::async_runtime::block_on(app.remove_data_store(id)) {
+                eprintln!("[ncw] remove_data_store failed: {err}");
+            }
         }
     }
 }
 
 /// Clears the workspace profile using one of its webviews (a temporary hidden one if none is live).
+/// On macOS, a full delete (workspace removal) skips the webview entirely: removing the
+/// WKWebsiteDataStore by identifier is the actual removal spec §7.1 asks for, and doesn't need one.
 fn clear_profile(app: &AppHandle, ws: Uuid, delete: bool) -> Res {
+    #[cfg(target_os = "macos")]
+    if delete {
+        return Ok(tauri::async_runtime::block_on(app.remove_data_store(*ws.as_bytes()))?);
+    }
     let prefix = format!("ws-{}-t-", ws.simple());
     let window = main_window(app)?;
     let existing = window.webviews().into_iter().find(|w| w.label().starts_with(&prefix));
@@ -293,6 +359,7 @@ fn clear_profile(app: &AppHandle, ws: Uuid, delete: bool) -> Res {
     if temporary {
         webview.close()?;
     }
+    #[cfg(not(target_os = "macos"))]
     if delete {
         if let Ok(dir) = profile_dir(app, ws) {
             let _ = std::fs::remove_dir_all(dir); // may fail on Windows until restart; sweep_profiles retries
@@ -304,6 +371,22 @@ fn clear_profile(app: &AppHandle, ws: Uuid, delete: bool) -> Res {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bridge_pattern_matches_only_its_origin() {
+        use tauri::utils::acl::RemoteUrlPattern;
+        for (base, same, other) in [
+            ("https://cloud.example.com/nc/", "https://cloud.example.com/index.php/apps/files/?dir=/#x", "http://cloud.example.com/"),
+            ("http://localhost:8080/", "http://localhost:8080/x", "http://localhost:8081/x"),
+            ("https://[::1]:8443/", "https://[::1]:8443/x", "https://[::2]:8443/x"),
+            ("https://a+b.example/", "https://a+b.example/x", "https://aab.example/x"),
+            ("https://a*b.example/", "https://a*b.example/x", "https://axxb.example/x"),
+        ] {
+            let p: RemoteUrlPattern = bridge_pattern(&Url::parse(base).unwrap()).unwrap().parse().unwrap();
+            assert!(p.test(&Url::parse(same).unwrap()), "{base} should match {same}");
+            assert!(!p.test(&Url::parse(other).unwrap()), "{base} should not match {other}");
+        }
+    }
 
     #[test]
     fn labels_round_trip_and_reject_others() {
