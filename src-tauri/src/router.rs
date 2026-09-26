@@ -91,7 +91,7 @@ mod tests {
             ("https://x.com/", "https://x.com/apps/twofactor_totp/settings", AUTH),
             ("https://x.com/", "https://x.com/remote.php/dav/files/a/b.pdf", AUTH),
             ("https://x.com/", "https://x.com/index.php/f/42", AUTH),
-            ("https://x.com/", "https://x.com/other.com/apps/files/", AUTH),
+            ("https://x.com/", "https://other.com/apps/files/", AUTH),
         ];
         for (base, url, want) in cases {
             assert_eq!(app_id(&u(url), &u(base)), want, "{url}");
