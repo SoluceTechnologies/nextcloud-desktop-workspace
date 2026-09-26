@@ -6,9 +6,15 @@ use std::path::Path;
 
 /// Missing file → empty state. Unreadable file → renamed to `*.json.bak`, empty state, notice for the user.
 pub fn load(path: &Path) -> (AppState, Option<String>) {
-    let Ok(text) = fs::read_to_string(path) else { return (AppState::default(), None) };
-    match serde_json::from_str(&text) {
-        Ok(state) => (state, None),
+    match fs::read_to_string(path) {
+        Ok(text) => match serde_json::from_str(&text) {
+            Ok(state) => (state, None),
+            Err(err) => {
+                let _ = fs::rename(path, path.with_extension("json.bak"));
+                (AppState::default(), Some(format!("Saved workspaces could not be read ({err}). A backup was kept.")))
+            }
+        },
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => (AppState::default(), None),
         Err(err) => {
             let _ = fs::rename(path, path.with_extension("json.bak"));
             (AppState::default(), Some(format!("Saved workspaces could not be read ({err}). A backup was kept.")))
@@ -52,6 +58,18 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("workspaces.json");
         fs::write(&path, "{not json").unwrap();
+        let (s, notice) = load(&path);
+        assert_eq!(s, AppState::default());
+        assert!(notice.is_some());
+        assert!(dir.path().join("workspaces.json.bak").exists());
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn invalid_utf8_is_backed_up_and_reported() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("workspaces.json");
+        fs::write(&path, &[0xff, 0xfe, 0x00]).unwrap();
         let (s, notice) = load(&path);
         assert_eq!(s, AppState::default());
         assert!(notice.is_some());
