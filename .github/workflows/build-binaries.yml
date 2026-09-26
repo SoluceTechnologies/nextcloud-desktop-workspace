@@ -87,7 +87,7 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
-          NAME="$APP-${{ inputs.version }}-${{ matrix.target }}"
+          NAME="$APP-${{ matrix.target }}"
           mkdir -p dist
           for f in "$BUNDLE"/dmg/*.dmg "$BUNDLE"/nsis/*.exe "$BUNDLE"/msi/*.msi \
                    "$BUNDLE"/deb/*.deb "$BUNDLE"/rpm/*.rpm "$BUNDLE"/appimage/*.AppImage; do
