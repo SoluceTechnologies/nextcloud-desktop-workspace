@@ -1,0 +1,26 @@
+{
+  "git": {
+    "commitMessage": "chore(release): ${version}",
+    "tagName": "${version}",
+    "requireBranch": "main"
+  },
+  "github": {
+    "release": true,
+    "draft": true,
+    "releaseName": "Nextcloud Workspace ${version}"
+  },
+  "npm": {
+    "publish": false
+  },
+  "hooks": {
+    "after:bump": "cargo set-version --manifest-path src-tauri/Cargo.toml ${version}"
+  },
+  "plugins": {
+    "@release-it/conventional-changelog": {
+      "preset": {
+        "name": "conventionalcommits"
+      },
+      "infile": "CHANGELOG.md"
+    }
+  }
+}
