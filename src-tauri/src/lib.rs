@@ -1,5 +1,6 @@
 mod commands;
 mod engine;
+mod menus;
 mod model;
 mod router;
 mod store;
@@ -28,7 +29,11 @@ pub fn run() {
             commands::clear_browsing_data,
             commands::nc_report_location,
             commands::nc_report_meta,
+            commands::workspace_menu,
+            commands::tab_menu,
+            commands::apps_menu,
         ])
+        .on_menu_event(|app, event| menus::on_event(app, event.id().as_ref()))
         .setup(|app| {
             let handle = app.handle().clone();
             let store_path = app.path().app_config_dir()?.join("workspaces.json");

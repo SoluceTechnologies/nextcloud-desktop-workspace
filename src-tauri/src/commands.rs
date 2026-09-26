@@ -2,6 +2,7 @@
 //! `nc_*` bridge commands are granted per workspace origin at runtime (webviews::grant_bridge).
 
 use crate::engine::{AppLink, Effect, Engine};
+use crate::menus;
 use crate::model::AppState;
 use crate::webviews::{engine, run, tab_of};
 use std::sync::Mutex;
@@ -97,4 +98,19 @@ pub fn nc_report_location(app: AppHandle, webview: Webview, url: String) {
 pub fn nc_report_meta(app: AppHandle, webview: Webview, icon: Option<String>, apps: Vec<AppLink>) {
     let Some(tab) = tab_of(webview.label()) else { return };
     apply(&app, |e| e.observe_meta(tab, icon, apps));
+}
+
+#[tauri::command]
+pub fn workspace_menu(app: AppHandle, ws: Uuid) -> Result<(), String> {
+    menus::popup_workspace(&app, ws).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn tab_menu(app: AppHandle, ws: Uuid, tab: Uuid) -> Result<(), String> {
+    menus::popup_tab(&app, ws, tab).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn apps_menu(app: AppHandle, ws: Uuid) -> Result<(), String> {
+    menus::popup_apps(&app, ws).map_err(|e| e.to_string())
 }
