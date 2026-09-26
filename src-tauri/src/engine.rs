@@ -210,14 +210,18 @@ impl Engine {
         let current = t.app_id.clone();
         let page = router::app_id(&url, &w.base_url);
         let other = w.tab_by_app(&page).map(|o| o.id).filter(|&o| o != tab && page != AUTH);
-        let was_selected = self.state.active_workspace_id == Some(ws) && w.active_tab_id == Some(tab);
+        let was_active_tab = w.active_tab_id == Some(tab);
 
         if current == AUTH && page != AUTH {
             if let Some(o) = other {
                 let mut fx = Vec::new();
                 self.navigate_tab(ws, o, url, &mut fx);
-                if was_selected {
-                    self.select(ws, o);
+                if was_active_tab {
+                    // Only hand this workspace's own selection to `o`; never change which
+                    // workspace is globally shown from a background page report.
+                    if let Some(w) = self.state.ws_mut(ws) {
+                        w.active_tab_id = Some(o);
+                    }
                 }
                 self.remove_tab(ws, tab, &mut fx);
                 return self.presented(fx);
@@ -766,5 +770,62 @@ mod tests {
         let fx = e.reload_home(w, files);
         assert!(fx.contains(&Effect::Navigate { ws: w, tab: files, url: u("https://a.com/nc/apps/files/") }));
         assert!(e.reload_home(w, files).contains(&Effect::Reload { ws: w, tab: files }));
+    }
+
+    #[test]
+    fn location_merge_in_background_workspace_updates_that_workspaces_selection_only() {
+        let mut e = engine_with(&["https://a.com", "https://b.com"], MAX_LIVE);
+        let (a, b) = (ws(&e, 0), ws(&e, 1));
+        e.open_app(a, "files", u("https://a.com/apps/files/"), true);
+        let files = tab_of_app(&e, 0, "files");
+        let auth = created(&e.open_home(a))[0];
+        e.activate_workspace(b);
+        let docs = u("https://a.com/apps/files/?dir=/Docs");
+        let fx = e.observe_location(auth, docs);
+        assert_eq!(e.state.workspaces[0].active_tab_id, Some(files), "A's own selection moves to the merge target");
+        assert_eq!(e.state.active_workspace_id, Some(b), "background report never switches the shown workspace");
+        assert!(e.state.workspaces[0].tab(auth).is_none());
+        assert!(destroyed(&fx).contains(&auth));
+        let b_tab = e.state.workspaces[1].tabs[0].id;
+        assert_eq!(shown(&fx), Some(b_tab), "B, not A, stays on screen");
+    }
+
+    #[test]
+    fn meta_icon_size_boundary_enforced_and_previous_kept_on_reject() {
+        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
+        let tab = e.state.workspaces[0].tabs[0].id;
+        let prefix = "data:image/png;base64,";
+        let ok = format!("{prefix}{}", "A".repeat(MAX_ICON - prefix.len()));
+        assert_eq!(ok.len(), MAX_ICON);
+        e.observe_meta(tab, Some(ok.clone()), vec![]);
+        assert_eq!(e.state.workspaces[0].icon.as_deref(), Some(ok.as_str()));
+        let too_big = format!("{ok}A");
+        e.observe_meta(tab, Some(too_big), vec![]);
+        assert_eq!(e.state.workspaces[0].icon.as_deref(), Some(ok.as_str()), "oversized icon rejected, previous kept");
+    }
+
+    #[test]
+    fn meta_caps_app_links_to_max_apps_in_input_order() {
+        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
+        let tab = e.state.workspaces[0].tabs[0].id;
+        let links: Vec<AppLink> = (0..70)
+            .map(|i| AppLink { name: format!("App {i}"), href: format!("https://a.com/apps/app{i}/") })
+            .collect();
+        e.observe_meta(tab, None, links);
+        let w = &e.state.workspaces[0];
+        assert_eq!(w.apps.len(), MAX_APPS);
+        let want: Vec<String> = (0..MAX_APPS).map(|i| format!("app{i}")).collect();
+        assert_eq!(w.apps.iter().map(|a| a.id.clone()).collect::<Vec<_>>(), want);
+    }
+
+    #[test]
+    fn title_page_part_truncated_to_max_title() {
+        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
+        let tab = e.state.workspaces[0].tabs[0].id;
+        let long_page = "x".repeat(300);
+        e.observe_title(tab, &format!("{long_page} - Some Cloud"));
+        let title = &e.state.workspaces[0].tabs[0].title;
+        assert_eq!(title.chars().count(), MAX_TITLE);
+        assert_eq!(title, &"x".repeat(MAX_TITLE));
     }
 }
