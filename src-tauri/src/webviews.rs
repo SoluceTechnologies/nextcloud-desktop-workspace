@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Mutex, MutexGuard};
 use tauri::ipc::CapabilityBuilder;
-use tauri::webview::{NewWindowResponse, WebviewBuilder};
+use tauri::webview::{NewWindowResponse, PageLoadEvent, WebviewBuilder};
 use tauri::window::WindowBuilder;
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Webview, WebviewUrl, Window, WindowEvent, Wry,
@@ -42,18 +42,20 @@ pub fn run(app: &AppHandle, fx: Vec<Effect>) {
 }
 
 /// Single worker: applies effect batches in order, off the main thread and outside the engine lock.
-/// `sweep_state`, when present, triggers `sweep_profiles` first (skipped when `workspaces.json` failed
+/// `sweep_state`, when present, triggers `sweep_profiles` after the startup batch (skipped when `workspaces.json` failed
 /// to load: the caller passes `None` rather than sweep against an empty recovery state, which would
 /// delete every live profile). Run here, not in `setup`, because the macOS data-store calls need the
 /// main thread's event loop pumping, which it isn't yet during `setup`.
 pub fn spawn_worker(app: AppHandle, rx: Receiver<Vec<Effect>>, sweep_state: Option<AppState>) {
     std::thread::spawn(move || {
-        if let Some(state) = sweep_state {
-            sweep_profiles(&app, &state);
-        }
+        let mut sweep_state = sweep_state;
         let mut granted = HashSet::new();
         for batch in rx {
             apply_batch(&app, batch, &mut granted);
+            // After the startup batch, so the first page does not wait for it.
+            if let Some(state) = sweep_state.take() {
+                sweep_profiles(&app, &state);
+            }
         }
     });
 }
@@ -215,7 +217,7 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
         grant_bridge(app, ws, &url)?;
         granted.insert(ws);
     }
-    let (nav, popup, title, dl) = (app.clone(), app.clone(), app.clone(), app.clone());
+    let (nav, popup, title, dl, warm) = (app.clone(), app.clone(), app.clone(), app.clone(), app.clone());
     let builder = WebviewBuilder::new(&label, WebviewUrl::External(url))
         .initialization_script(BRIDGE_JS)
         .on_navigation(move |u| navigation(&nav, u))
@@ -228,7 +230,14 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
             let fx = engine(&title).observe_title(tab, &t);
             run(&title, fx);
         })
-        .on_download(move |_, event| crate::downloads::handle(&dl, event));
+        .on_download(move |_, event| crate::downloads::handle(&dl, event))
+        // Each finished page loads the next cold tab in the background, one at a time.
+        .on_page_load(move |_, page| {
+            if page.event() == PageLoadEvent::Finished {
+                let fx = engine(&warm).preload_next();
+                run(&warm, fx);
+            }
+        });
     #[cfg(target_os = "macos")]
     let builder = match safari_user_agent() {
         Some(ua) => builder.user_agent(ua),
