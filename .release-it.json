@@ -1,26 +1,60 @@
 {
-  "git": {
-    "commitMessage": "chore(release): ${version}",
-    "tagName": "${version}",
-    "requireBranch": "main"
-  },
   "github": {
     "release": true,
     "draft": true,
-    "releaseName": "Nextcloud Workspace ${version}"
+    "tokenRef": "GITHUB_TOKEN"
   },
-  "npm": {
-    "publish": false
+  "git": {
+    "commit": true,
+    "commitMessage": "chore: release ${version}",
+    "requireCleanWorkingDir": true,
+    "tag": true,
+    "tagName": "${version}",
+    "push": true
   },
+  "npm": false,
   "hooks": {
-    "after:bump": "cargo set-version --manifest-path src-tauri/Cargo.toml ${version}"
+    "before:bump": "cargo set-version --manifest-path src-tauri/Cargo.toml ${version}"
   },
   "plugins": {
     "@release-it/conventional-changelog": {
       "preset": {
-        "name": "conventionalcommits"
-      },
-      "infile": "CHANGELOG.md"
+        "name": "conventionalcommits",
+        "types": [
+          {
+            "type": "feat",
+            "section": "✨ Features"
+          },
+          {
+            "type": "fix",
+            "section": "🐛 Bug Fixes"
+          },
+          {
+            "type": "perf",
+            "section": "⚡️ Performance Improvements"
+          },
+          {
+            "type": "revert",
+            "section": "⏪️ Reverts"
+          },
+          {
+            "type": "docs",
+            "section": "📝 Documentation",
+            "hidden": true
+          },
+          {
+            "type": "chore",
+            "section": "🔧 Chores",
+            "hidden": true
+          }
+        ]
+      }
+    },
+    "@release-it/bumper": {
+      "in": {
+        "file": "src-tauri/Cargo.toml",
+        "path": "package.version"
+      }
     }
   }
 }
