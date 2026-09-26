@@ -97,16 +97,6 @@ jobs:
       ref: ${{ needs.create-release.outputs.draft_tag }}
     secrets: inherit
 
-  publish-apt:
-    needs:
-      - create-release
-      - build-binaries
-    if: ${{ vars.APT_REPO == 'true' }}
-    uses: ./.github/workflows/publish-apt.yml
-    with:
-      version: ${{ needs.create-release.outputs.version }}
-      ref: ${{ needs.create-release.outputs.draft_tag }}
-    secrets: inherit
 
   finalize-release:
     needs:
