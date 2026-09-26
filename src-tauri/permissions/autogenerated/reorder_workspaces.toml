@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-reorder-workspaces"
+description = "Enables the reorder_workspaces command without any pre-configured scope."
+commands.allow = ["reorder_workspaces"]
+
+[[permission]]
+identifier = "deny-reorder-workspaces"
+description = "Denies the reorder_workspaces command without any pre-configured scope."
+commands.deny = ["reorder_workspaces"]

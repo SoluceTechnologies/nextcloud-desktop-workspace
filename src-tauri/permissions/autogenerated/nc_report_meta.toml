@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-nc-report-meta"
+description = "Enables the nc_report_meta command without any pre-configured scope."
+commands.allow = ["nc_report_meta"]
+
+[[permission]]
+identifier = "deny-nc-report-meta"
+description = "Denies the nc_report_meta command without any pre-configured scope."
+commands.deny = ["nc_report_meta"]

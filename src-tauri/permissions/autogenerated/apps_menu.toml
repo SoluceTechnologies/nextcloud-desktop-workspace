@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-apps-menu"
+description = "Enables the apps_menu command without any pre-configured scope."
+commands.allow = ["apps_menu"]
+
+[[permission]]
+identifier = "deny-apps-menu"
+description = "Denies the apps_menu command without any pre-configured scope."
+commands.deny = ["apps_menu"]

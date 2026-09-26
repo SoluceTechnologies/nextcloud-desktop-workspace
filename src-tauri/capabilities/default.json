@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Shell UI (local React app) only",
+  "webviews": ["shell"],
+  "permissions": [
+    "core:default",
+    "allow-get-state",
+    "allow-take-notice",
+    "allow-add-workspace",
+    "allow-remove-workspace",
+    "allow-rename-workspace",
+    "allow-reorder-workspaces",
+    "allow-activate-workspace",
+    "allow-activate-tab",
+    "allow-close-tab",
+    "allow-reorder-tabs",
+    "allow-set-overlay",
+    "allow-clear-browsing-data",
+    "allow-workspace-menu",
+    "allow-tab-menu",
+    "allow-apps-menu",
+    "allow-reveal-download"
+  ]
+}
