@@ -69,11 +69,16 @@ pub fn tab_of(label: &str) -> Option<Uuid> {
 
 /// Main window: no own webview; the React shell is a full-size child, content webviews go on top of it.
 pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
-    let window = WindowBuilder::new(app, "main")
+    let builder = WindowBuilder::new(app, "main")
         .title("NC Workspaces")
         .inner_size(1280.0, 800.0)
-        .min_inner_size(800.0, 500.0)
-        .build()?;
+        .min_inner_size(800.0, 500.0);
+    // Tauri's default macOS style (`Visible`) turns on fullsize_content_view: the content view then runs
+    // under the title bar, so child webview y is measured from the window's top edge and the content
+    // webview covered the tab bar. `Transparent` keeps the content view below the title bar.
+    #[cfg(target_os = "macos")]
+    let builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
+    let window = builder.build()?;
     let size = window.inner_size()?.to_logical::<f64>(window.scale_factor()?);
     window.add_child(
         WebviewBuilder::new("shell", WebviewUrl::App("index.html".into())).auto_resize(),
