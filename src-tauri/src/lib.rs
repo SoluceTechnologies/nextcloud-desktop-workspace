@@ -3,6 +3,7 @@ mod model;
 mod urls;
 mod router;
 mod webviews;
+mod store;
 
 pub fn run() {
     tauri::Builder::default()
