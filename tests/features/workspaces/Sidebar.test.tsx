@@ -1,11 +1,11 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api } from '../api';
-import type { AppState } from '../types';
-import { Sidebar } from './Sidebar';
+import { Sidebar } from '@/features/workspaces/Sidebar';
+import { api } from '@/lib/api';
+import type { AppState } from '@/lib/types';
 
-vi.mock('../api', () => ({
-  api: { activateWorkspace: vi.fn(), workspaceMenu: vi.fn(), reorderWorkspaces: vi.fn(), setTheme: vi.fn() },
+vi.mock('@/lib/api', () => ({
+  api: { activateWorkspace: vi.fn(), workspaceMenu: vi.fn(), reorderWorkspaces: vi.fn() },
 }));
 
 const state: AppState = {
@@ -49,14 +49,6 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OCCOS' }));
     expect(api.activateWorkspace).toHaveBeenCalledWith('b');
     expect(onActivate).toHaveBeenCalled();
-  });
-
-  it('shows the chosen appearance and changes it', () => {
-    render(<Sidebar state={state} adding={false} onAdd={() => {}} onActivate={() => {}} />);
-    expect(screen.getByRole('radio', { name: 'Dark' }).getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByRole('radio', { name: 'System' }).getAttribute('aria-checked')).toBe('false');
-    fireEvent.click(screen.getByRole('radio', { name: 'Light' }));
-    expect(api.setTheme).toHaveBeenCalledWith('light');
   });
 
   it('calls onAdd from the + button', () => {

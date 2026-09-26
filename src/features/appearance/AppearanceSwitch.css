@@ -1,0 +1,10 @@
+.appearance {
+  margin-top: auto; display: flex; flex-direction: column; gap: 2px; padding: 3px;
+  border-radius: 10px; background: var(--hover);
+}
+.appearance button {
+  width: 30px; height: 26px; padding: 0; border: 0; border-radius: 7px; display: grid; place-items: center;
+  background: none; color: var(--faint); cursor: pointer;
+}
+.appearance button:hover { color: var(--text); }
+.appearance button[aria-checked='true'] { background: var(--panel); color: var(--text); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--border); }

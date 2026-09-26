@@ -1,0 +1,7 @@
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); }
+body { cursor: default; -webkit-user-select: none; user-select: none; }
+input { -webkit-user-select: text; user-select: text; }
+button { font: inherit; color: inherit; }
+svg { flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }

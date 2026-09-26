@@ -1,10 +1,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api } from '../api';
-import type { Workspace } from '../types';
-import { TabBar } from './TabBar';
+import { TabBar } from '@/features/tabs/TabBar';
+import { api } from '@/lib/api';
+import type { Workspace } from '@/lib/types';
 
-vi.mock('../api', () => ({
+vi.mock('@/lib/api', () => ({
   api: { activateTab: vi.fn(), closeTab: vi.fn(), tabMenu: vi.fn(), appsMenu: vi.fn(), reorderTabs: vi.fn() },
 }));
 

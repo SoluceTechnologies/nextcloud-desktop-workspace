@@ -1,0 +1,4 @@
+.initials {
+  width: 100%; height: 100%; display: grid; place-items: center; background: var(--accent);
+  color: #fff; font-weight: 600; font-size: 15px; letter-spacing: 0.02em;
+}

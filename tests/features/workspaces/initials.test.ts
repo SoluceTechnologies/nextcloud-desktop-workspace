@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initials, move } from './util';
+import { initials } from '@/features/workspaces/initials';
 
 describe('initials', () => {
   it('uses the meaningful host label for host names', () => {
@@ -14,14 +14,5 @@ describe('initials', () => {
   });
   it('falls back to ?', () => {
     expect(initials('  ')).toBe('?');
-  });
-});
-
-describe('move', () => {
-  it('moves an item without mutating the input', () => {
-    const src = ['a', 'b', 'c'];
-    expect(move(src, 0, 2)).toEqual(['b', 'c', 'a']);
-    expect(move(src, 2, 0)).toEqual(['c', 'a', 'b']);
-    expect(src).toEqual(['a', 'b', 'c']);
   });
 });

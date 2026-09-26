@@ -1,0 +1,42 @@
+.tabbar {
+  position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; padding: 0 8px;
+  background: var(--chrome); border-bottom: 1px solid var(--border);
+}
+.tabs { display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  display: flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 72px; max-width: 220px; height: 28px;
+  padding: 0 5px 0 12px; border-radius: 7px; color: var(--muted); font-size: 12.5px; white-space: nowrap; cursor: pointer;
+}
+.tab:hover { background: var(--hover); color: var(--text); }
+.tab.active { background: var(--tab-active); color: var(--text); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--border); }
+.tab.pinned { padding-right: 12px; }
+.tab .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tab .pin { display: flex; color: var(--faint); }
+.tab .loader {
+  flex: none; width: 11px; height: 11px; border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+.tabbar .progress { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; overflow: hidden; pointer-events: none; }
+.tabbar .progress::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: -35%; width: 35%;
+  border-radius: 2px; background: var(--accent); animation: progress 1.2s ease-in-out infinite;
+}
+@keyframes progress { to { left: 100%; } }
+@media (prefers-reduced-motion: reduce) {
+  .tab .loader { animation: none; }
+  .tabbar .progress::before { left: 0; width: 100%; opacity: 0.6; animation: none; }
+}
+.tab .close {
+  display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 5px;
+  background: none; color: var(--muted); cursor: pointer; opacity: 0;
+}
+.tab:hover .close, .tab.active .close, .tab .close:focus-visible { opacity: 1; }
+.tab .close:hover { background: var(--hover); color: var(--text); }
+.tabbar .add {
+  flex: none; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px;
+  background: none; color: var(--muted); cursor: pointer;
+}
+.tabbar .add:hover { background: var(--hover); color: var(--text); }
+.tab:focus-visible, .tabbar .add:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

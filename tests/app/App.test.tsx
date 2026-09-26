@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import App from './App';
-import type { AppState } from './types';
+import App from '@/app/App';
+import type { AppState } from '@/lib/types';
 
-vi.mock('./api', () => ({ api: new Proxy({}, { get: () => vi.fn(() => Promise.resolve()) }) }));
+vi.mock('@/lib/api', () => ({ api: new Proxy({}, { get: () => vi.fn(() => Promise.resolve()) }) }));
 
 const state: AppState = {
   version: 1,
@@ -23,12 +23,10 @@ const state: AppState = {
   ],
 };
 
-vi.mock('./hooks', () => ({
-  useAppState: () => state,
-  useTauriEvent: () => {},
-  useNotice: () => null,
-  useLoadingTabs: () => new Set(),
-}));
+vi.mock('@/lib/useAppState', () => ({ useAppState: () => state }));
+vi.mock('@/lib/useTauriEvent', () => ({ useTauriEvent: () => {} }));
+vi.mock('@/features/notices/useNotice', () => ({ useNotice: () => null }));
+vi.mock('@/features/tabs/useLoadingTabs', () => ({ useLoadingTabs: () => new Set() }));
 
 afterEach(cleanup);
 

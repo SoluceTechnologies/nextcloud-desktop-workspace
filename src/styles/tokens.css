@@ -1,0 +1,49 @@
+:root {
+  --sidebar-w: 68px; /* = SIDEBAR_W in src-tauri/src/webviews.rs */
+  --tabbar-h: 40px; /* = TABBAR_H in src-tauri/src/webviews.rs */
+  --chrome: #e9eaed; /* = paint_chrome in src-tauri/src/webviews.rs (the macOS title bar shows it) */
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --text: #1c1f24;
+  --muted: #666c76;
+  --faint: #8a909a;
+  --border: rgba(16, 24, 40, 0.1);
+  --border-strong: rgba(16, 24, 40, 0.18);
+  --hover: rgba(16, 24, 40, 0.06);
+  --tab-active: #ffffff;
+  --accent: #0082c9; /* Nextcloud blue: the only blue of the app, both themes */
+  --accent-hover: color-mix(in srgb, var(--accent) 86%, #000);
+  --focus: 0 0 0 3px rgba(0, 130, 201, 0.3);
+  --danger: #cf3040;
+  --danger-soft: rgba(207, 48, 64, 0.1);
+  --warn: #8f5a00;
+  --warn-soft: rgba(214, 138, 0, 0.13);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 1px 3px rgba(16, 24, 40, 0.06), 0 12px 32px rgba(16, 24, 40, 0.1);
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Ubuntu, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --chrome: #1e1f22;
+    --bg: #151618;
+    --panel: #232428;
+    --text: #e7e8eb;
+    --muted: #a0a4ac;
+    --faint: #7c818a;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --hover: rgba(255, 255, 255, 0.07);
+    --tab-active: #2e2f34;
+    --focus: 0 0 0 3px rgba(0, 130, 201, 0.5);
+    --danger: #ef5f6b;
+    --danger-soft: rgba(239, 95, 107, 0.14);
+    --warn: #e0a43a;
+    --warn-soft: rgba(224, 164, 58, 0.14);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 1px 3px rgba(0, 0, 0, 0.3), 0 16px 40px rgba(0, 0, 0, 0.45);
+  }
+}

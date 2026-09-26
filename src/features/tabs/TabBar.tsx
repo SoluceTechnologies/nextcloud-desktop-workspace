@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from 'react';
-import { api } from '../api';
-import { CloseIcon, PinIcon, PlusIcon } from '../icons';
-import type { Workspace } from '../types';
-import { move } from '../util';
+import { CloseIcon, PinIcon, PlusIcon } from '@/components/icons';
+import { api } from '@/lib/api';
+import { move } from '@/lib/move';
+import type { Workspace } from '@/lib/types';
+import './TabBar.css';
 
-/** `loading`: ids of tabs whose page is loading (spinner in the tab, progress bar for the selected one). */
 export function TabBar(props: { workspace: Workspace | null; loading: Set<string>; notice: ReactNode }) {
   const { workspace, loading, notice } = props;
   const [dragFrom, setDragFrom] = useState<number | null>(null);

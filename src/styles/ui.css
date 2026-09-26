@@ -1,0 +1,41 @@
+.sheet {
+  width: min(440px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 22px 24px 18px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-sm);
+}
+.sheet h1 { margin: 0; font-size: 16px; font-weight: 600; }
+.lede { margin: -6px 0 2px; color: var(--muted); }
+.hint { margin: -4px 0 0; color: var(--muted); font-size: 12px; }
+.field-label { margin-bottom: -6px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.field {
+  display: flex; align-items: center; height: 32px; padding: 0 10px;
+  border: 1px solid var(--border-strong); border-radius: 6px; background: var(--bg);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.field:focus-within { border-color: var(--accent); box-shadow: var(--focus); }
+.field.invalid, .field.invalid:focus-within { border-color: var(--danger); }
+.field.invalid:focus-within { box-shadow: 0 0 0 3px var(--danger-soft); }
+.field input {
+  flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: none;
+  font: inherit; font-size: 13.5px; color: var(--text);
+}
+.field input::placeholder { color: var(--faint); }
+.note { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; }
+.note svg { margin-top: 1px; }
+.note.warn { background: var(--warn-soft); color: var(--warn); }
+.note.error { background: var(--danger-soft); color: var(--danger); }
+.actions { display: flex; justify-content: flex-end; gap: 8px; margin: 6px -24px 0; padding: 14px 24px 0; border-top: 1px solid var(--border); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 28px; padding: 0 14px;
+  border: 1px solid transparent; border-radius: 6px; font-weight: 500; cursor: pointer;
+}
+.btn:focus-visible { outline: none; box-shadow: var(--focus); }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn.ghost { background: transparent; border-color: var(--border-strong); }
+.btn.ghost:hover { background: var(--hover); }
+.btn.danger { background: var(--danger); color: #fff; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.spinner {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.4); border-top-color: #fff; animation: spin 0.7s linear infinite;
+}

@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 
-/** Stroke icons (24 px grid, currentColor), decorative only: pair them with text or an aria-label. */
 function Icon({ size = 16, children }: { size?: number; children: ReactNode }) {
   return (
     <svg

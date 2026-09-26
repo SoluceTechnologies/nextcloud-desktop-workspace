@@ -1,10 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api } from '../api';
-import type { AppState, Workspace } from '../types';
-import { DialogView } from './Dialogs';
+import { EditWorkspaceForm } from '@/features/workspaces/EditWorkspaceForm';
+import { api } from '@/lib/api';
+import type { Workspace } from '@/lib/types';
 
-vi.mock('../api', () => ({
+vi.mock('@/lib/api', () => ({
   api: { renameWorkspace: vi.fn(() => Promise.resolve()), setWorkspaceIcon: vi.fn(() => Promise.resolve()) },
 }));
 
@@ -20,8 +20,6 @@ const ws = (over: Partial<Workspace>): Workspace => ({
   activeTabId: null,
   ...over,
 });
-const state = (w: Workspace): AppState => ({ version: 1, workspaces: [w], activeWorkspaceId: 'w', theme: 'system' });
-
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -30,7 +28,7 @@ afterEach(() => {
 describe('Edit workspace', () => {
   it('goes back to the server icon and saves a changed name', async () => {
     const onClose = vi.fn();
-    render(<DialogView dialog={{ kind: 'edit', ws: 'w' }} state={state(ws({}))} onClose={onClose} />);
+    render(<EditWorkspaceForm ws={ws({})} onDone={onClose} />);
     fireEvent.click(screen.getByRole('button', { name: 'Use server icon' }));
     expect(screen.getByText('ST')).toBeTruthy();
     fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Soluce' } });
@@ -42,7 +40,7 @@ describe('Edit workspace', () => {
 
   it('offers no reset for a server icon and changes nothing when nothing changed', async () => {
     const onClose = vi.fn();
-    render(<DialogView dialog={{ kind: 'edit', ws: 'w' }} state={state(ws({ iconCustom: false }))} onClose={onClose} />);
+    render(<EditWorkspaceForm ws={ws({ iconCustom: false })} onDone={onClose} />);
     expect(screen.queryByRole('button', { name: 'Use server icon' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
