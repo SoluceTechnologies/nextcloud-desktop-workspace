@@ -163,16 +163,36 @@ impl Engine {
                 }
                 t
             }
-            None => {
-                let w = self.state.ws_mut(ws).expect("checked above");
-                let t = Tab::new(app_id, &w.app_name(app_id), url);
-                let id = t.id;
-                w.tabs.push(t);
-                id
-            }
+            None => self.push_tab(ws, app_id, url),
         };
         self.select(ws, tab);
         self.presented(fx)
+    }
+
+    /// A link opened as a new window (`window.open`, `target=_blank`, cross-app click): a tab already at
+    /// that URL is selected; an app home (app menu link) selects the app's tab without reloading it;
+    /// any other link, such as a document, gets a tab of its own, so one app can have several tabs.
+    fn open_link(&mut self, ws: Uuid, app_id: &str, url: Url) -> Vec<Effect> {
+        let Some(w) = self.state.ws(ws) else { return Vec::new() };
+        if let Some(t) = w.tabs.iter().find(|t| t.url == url).map(|t| t.id) {
+            self.select(ws, t);
+            return self.presented(Vec::new());
+        }
+        let home = url == router::home_url(&w.base_url, app_id) || w.apps.iter().any(|a| a.href == url);
+        if home {
+            return self.open_app(ws, app_id, url, false);
+        }
+        let tab = self.push_tab(ws, app_id, url);
+        self.select(ws, tab);
+        self.presented(Vec::new())
+    }
+
+    fn push_tab(&mut self, ws: Uuid, app_id: &str, url: Url) -> Uuid {
+        let w = self.state.ws_mut(ws).expect("caller checked the workspace");
+        let t = Tab::new(app_id, &w.app_name(app_id), url);
+        let id = t.id;
+        w.tabs.push(t);
+        id
     }
 
     pub fn close_tab(&mut self, ws: Uuid, tab: Uuid) -> Vec<Effect> {
@@ -300,7 +320,7 @@ impl Engine {
 
     pub fn on_new_window(&mut self, url: &Url) -> Vec<Effect> {
         match router::classify_new_window(&self.state, url) {
-            Route::Activate { ws, app_id, url } => self.open_app(ws, &app_id, url, true),
+            Route::Activate { ws, app_id, url } => self.open_link(ws, &app_id, url),
             Route::External(u) => vec![Effect::OpenExternal(u)],
             Route::InPlace | Route::Deny => Vec::new(),
         }
@@ -789,6 +809,29 @@ mod tests {
         assert_eq!(e.state.workspaces[1].tab(deck).unwrap().url, board);
         let gh = u("https://github.com/x");
         assert_eq!(e.on_new_window(&gh), vec![Effect::OpenExternal(gh)]);
+    }
+
+    #[test]
+    fn new_window_links_give_documents_their_own_tabs_and_reuse_app_homes() {
+        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
+        let selected = |e: &Engine| e.state.workspaces[0].active_tab_id.unwrap();
+        let doc1 = u("https://a.com/apps/eurooffice/1?filePath=%2Fa.docx");
+        e.on_new_window(&doc1);
+        let t1 = selected(&e);
+        e.on_new_window(&u("https://a.com/apps/eurooffice/2?filePath=%2Fb.docx"));
+        let t2 = selected(&e);
+        assert_ne!(t1, t2, "a second document of the same app gets its own tab");
+        let fx = e.on_new_window(&doc1);
+        assert_eq!(shown(&fx), Some(t1), "the same document selects its tab");
+        assert!(created(&fx).is_empty());
+        // An app home (app menu link) selects the app's tab and keeps its page.
+        e.on_new_window(&u("https://a.com/apps/files/?dir=/Photos"));
+        let files = selected(&e);
+        e.activate_tab(ws(&e, 0), t1);
+        let fx = e.on_new_window(&u("https://a.com/apps/files/"));
+        assert_eq!(shown(&fx), Some(files));
+        assert!(!fx.iter().any(|f| matches!(f, Effect::Navigate { .. })));
+        assert_eq!(e.state.workspaces[0].tabs.len(), 4, "auth + 2 documents + files");
     }
 
     #[test]
