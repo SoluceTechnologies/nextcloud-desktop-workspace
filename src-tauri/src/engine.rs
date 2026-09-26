@@ -58,27 +58,6 @@ impl Engine {
         self.live.contains(&tab)
     }
 
-    /// Creates one cold tab in the background (hidden) so that switching to it is instant: the active
-    /// workspace's tabs in bar order, then each other workspace's selected tab. Nothing once the live
-    /// budget is full. Preloaded tabs join the LRU as least recent, so they are evicted first.
-    pub fn preload_next(&mut self) -> Vec<Effect> {
-        if self.live.len() >= self.max_live {
-            return Vec::new();
-        }
-        let active = self.state.active_workspace_id;
-        let active_tabs = self.state.workspaces.iter().filter(|w| Some(w.id) == active).flat_map(|w| w.tabs.iter().map(move |t| (w.id, t)));
-        let other_selected = self
-            .state
-            .workspaces
-            .iter()
-            .filter(|w| Some(w.id) != active)
-            .filter_map(|w| Some((w.id, w.tab(w.active_tab_id?)?)));
-        let next = active_tabs.chain(other_selected).find(|(_, t)| !self.live.contains(&t.id));
-        let Some((ws, tab, url)) = next.map(|(ws, t)| (ws, t.id, t.url.clone())) else { return Vec::new() };
-        self.live.insert(0, tab);
-        vec![Effect::Create { ws, tab, url }]
-    }
-
     /// First presentation after launch: only the selected tab of the selected workspace gets a webview.
     pub fn startup(&mut self) -> Vec<Effect> {
         if self.state.active_workspace_id.and_then(|id| self.state.ws(id)).is_none() {
@@ -612,27 +591,6 @@ mod tests {
         assert_eq!(destroyed(&fx), vec![auth]);
         assert!(!e.is_live(auth));
         assert_eq!(created(&e.activate_tab(w, auth)), vec![auth]);
-    }
-
-    #[test]
-    fn preload_warms_active_workspace_then_other_selected_tabs_and_evicts_them_first() {
-        let mut e = engine_with(&["https://a.com", "https://b.com"], MAX_LIVE);
-        let a = ws(&e, 0);
-        e.open_app(a, "files", u("https://a.com/apps/files/"), true);
-        e.open_app(a, "deck", u("https://a.com/apps/deck/"), true);
-        // Restart: only the selected tab (deck in a) is live.
-        let mut e = Engine::new(e.state.clone(), 4);
-        e.startup();
-        let (auth_a, files) = (e.state.workspaces[0].tabs[0].id, tab_of_app(&e, 0, "files"));
-        let b_selected = e.state.workspaces[1].active_tab_id.unwrap();
-        assert_eq!(created(&e.preload_next()), vec![auth_a]);
-        assert_eq!(created(&e.preload_next()), vec![files]);
-        assert_eq!(created(&e.preload_next()), vec![b_selected]);
-        assert!(e.preload_next().is_empty(), "live budget is full");
-        // A tab the user opens pushes out a preloaded one, not the visited deck tab.
-        let fx = e.open_app(a, "spreed", u("https://a.com/apps/spreed/"), true);
-        assert_eq!(destroyed(&fx), vec![b_selected]);
-        assert!(e.is_live(tab_of_app(&e, 0, "deck")));
     }
 
     #[test]

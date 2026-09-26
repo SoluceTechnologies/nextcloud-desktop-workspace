@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Mutex, MutexGuard};
 use tauri::ipc::CapabilityBuilder;
-use tauri::webview::{NewWindowResponse, PageLoadEvent, WebviewBuilder};
+use tauri::webview::{NewWindowResponse, WebviewBuilder};
 use tauri::window::WindowBuilder;
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Webview, WebviewUrl, Window, WindowEvent, Wry,
@@ -217,7 +217,7 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
         grant_bridge(app, ws, &url)?;
         granted.insert(ws);
     }
-    let (nav, popup, title, dl, warm) = (app.clone(), app.clone(), app.clone(), app.clone(), app.clone());
+    let (nav, popup, title, dl) = (app.clone(), app.clone(), app.clone(), app.clone());
     let builder = WebviewBuilder::new(&label, WebviewUrl::External(url))
         .initialization_script(BRIDGE_JS)
         .on_navigation(move |u| navigation(&nav, u))
@@ -230,14 +230,7 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
             let fx = engine(&title).observe_title(tab, &t);
             run(&title, fx);
         })
-        .on_download(move |_, event| crate::downloads::handle(&dl, event))
-        // Each finished page loads the next cold tab in the background, one at a time.
-        .on_page_load(move |_, page| {
-            if page.event() == PageLoadEvent::Finished {
-                let fx = engine(&warm).preload_next();
-                run(&warm, fx);
-            }
-        });
+        .on_download(move |_, event| crate::downloads::handle(&dl, event));
     #[cfg(target_os = "macos")]
     let builder = match safari_user_agent() {
         Some(ua) => builder.user_agent(ua),
