@@ -32,6 +32,7 @@ pub fn run() {
             commands::clear_browsing_data,
             commands::nc_report_location,
             commands::nc_report_meta,
+            commands::nc_report_fullscreen,
             commands::workspace_menu,
             commands::tab_menu,
             commands::apps_menu,
@@ -52,6 +53,7 @@ pub fn run() {
             app.manage(commands::Notice(Mutex::new(notice)));
             app.manage(webviews::StorePath(store_path));
             app.manage(webviews::EffectTx(tx));
+            app.manage(webviews::Fullscreen::default());
             webviews::create_main_window(&handle)?;
             webviews::spawn_worker(handle.clone(), rx, sweep_state);
             webviews::run(&handle, startup);

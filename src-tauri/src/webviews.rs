@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::MutexGuard;
+use std::sync::{Mutex, MutexGuard};
 use tauri::ipc::CapabilityBuilder;
 use tauri::webview::{NewWindowResponse, WebviewBuilder};
 use tauri::window::WindowBuilder;
@@ -101,13 +101,34 @@ fn content_rect(window: &Window) -> tauri::Result<(LogicalPosition<f64>, Logical
     ))
 }
 
-/// Keeps every content webview (label `ws-…`) in the content rectangle.
+/// Label of the content webview currently in HTML fullscreen (covers the whole window).
+#[derive(Default)]
+pub struct Fullscreen(pub Mutex<Option<String>>);
+
+fn rect_for(window: &Window, label: &str) -> tauri::Result<(LogicalPosition<f64>, LogicalSize<f64>)> {
+    let full = window
+        .app_handle()
+        .state::<Fullscreen>()
+        .0
+        .lock()
+        .map(|f| f.as_deref() == Some(label))
+        .unwrap_or(false);
+    if full {
+        let size = window.inner_size()?.to_logical::<f64>(window.scale_factor()?);
+        return Ok((LogicalPosition::new(0.0, 0.0), size));
+    }
+    content_rect(window)
+}
+
+/// Keeps every content webview (label `ws-…`) in its rectangle: the content area, or the whole
+/// window for the one in HTML fullscreen.
 pub fn relayout(window: &Window) {
-    let Ok((pos, size)) = content_rect(window) else { return };
     for wv in window.webviews() {
         if wv.label().starts_with("ws-") {
-            let _ = wv.set_position(pos);
-            let _ = wv.set_size(size);
+            if let Ok((pos, size)) = rect_for(window, wv.label()) {
+                let _ = wv.set_position(pos);
+                let _ = wv.set_size(size);
+            }
         }
     }
 }
@@ -157,9 +178,9 @@ fn with_webview(app: &AppHandle, ws: Uuid, tab: Uuid, f: impl FnOnce(Webview) ->
 /// Shows `target` and hides every other content webview; `None` hides them all.
 fn show_only(app: &AppHandle, target: Option<&str>) -> Res {
     let window = main_window(app)?;
-    let (pos, size) = content_rect(&window)?;
     let content: Vec<Webview> = window.webviews().into_iter().filter(|w| w.label().starts_with("ws-")).collect();
     for w in content.iter().filter(|w| Some(w.label()) == target) {
+        let (pos, size) = rect_for(&window, w.label())?;
         w.set_position(pos)?;
         w.set_size(size)?;
         w.show()?;

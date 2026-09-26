@@ -4,7 +4,7 @@
 use crate::engine::{AppLink, Effect, Engine};
 use crate::menus;
 use crate::model::AppState;
-use crate::webviews::{engine, run, tab_of};
+use crate::webviews::{self, engine, run, tab_of, Fullscreen};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State, Webview};
 use tauri_plugin_opener::OpenerExt;
@@ -126,4 +126,13 @@ pub fn reveal_download(app: AppHandle, path: String) -> Result<(), String> {
         return Err("not a download".into());
     }
     app.opener().reveal_item_in_dir(path).map_err(|e| e.to_string())
+}
+
+/// Bridge: the page entered/left HTML fullscreen → window fullscreen + webview covers the window.
+#[tauri::command]
+pub fn nc_report_fullscreen(app: AppHandle, webview: Webview, on: bool) {
+    *app.state::<Fullscreen>().0.lock().unwrap_or_else(|e| e.into_inner()) = on.then(|| webview.label().to_string());
+    let window = webview.window();
+    let _ = window.set_fullscreen(on);
+    webviews::relayout(&window);
 }

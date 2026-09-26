@@ -110,6 +110,10 @@
     }
   };
 
+  document.addEventListener('fullscreenchange', () => {
+    invoke('nc_report_fullscreen', { on: !!document.fullscreenElement });
+  });
+
   const ready = async () => {
     report();
     invoke('nc_report_meta', { icon: await icon(), apps: apps().slice(0, 64) });
