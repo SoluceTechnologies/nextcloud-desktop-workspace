@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "vitest run"
+    "test": "vitest run",
+    "icon:glass": "mkdir -p src-tauri/target/icon && xcrun actool src-tauri/icons/AppIcon.icon --compile src-tauri/target/icon --app-icon AppIcon --include-all-app-icons --output-partial-info-plist src-tauri/target/icon/partial.plist --platform macosx --target-device mac --minimum-deployment-target 14.0 --enable-on-demand-resources NO --development-region en --errors && cp src-tauri/target/icon/Assets.car src-tauri/icons/Assets.car"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

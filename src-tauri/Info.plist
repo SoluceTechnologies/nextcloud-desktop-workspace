@@ -6,5 +6,8 @@
   <string>Nextcloud Talk calls use your microphone.</string>
   <key>NSCameraUsageDescription</key>
   <string>Nextcloud Talk video calls use your camera.</string>
+  <!-- Liquid Glass app icon from Resources/Assets.car (icons/AppIcon.icon, `npm run icon:glass`); icon.icns stays as fallback. -->
+  <key>CFBundleIconName</key>
+  <string>AppIcon</string>
 </dict>
 </plist>
