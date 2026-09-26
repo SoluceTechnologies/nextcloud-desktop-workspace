@@ -92,19 +92,19 @@
     }));
   };
 
-  // Icon as a data URL (≤ 48 KB binary → ≤ 64 KB data URL, the Rust limit).
+  // Icon as a 128 px PNG data URL (the Rust side accepts data:image/ ≤ 64 KB). Drawn through a canvas
+  // because servers send it as octet-stream, ICO, SVG or a large PNG; <img> sniffs all of them.
   const icon = async () => {
     const link = document.querySelector('link[rel="apple-touch-icon"]') || document.querySelector('link[rel~="icon"]');
     if (!link || !link.href) return null;
     try {
-      const blob = await (await fetch(link.href, { credentials: 'include' })).blob();
-      if (blob.size > 48000 || !blob.type.startsWith('image/')) return null;
-      return await new Promise((done) => {
-        const r = new FileReader();
-        r.onload = () => done(r.result);
-        r.onerror = () => done(null);
-        r.readAsDataURL(blob);
-      });
+      const img = new Image();
+      img.src = link.href;
+      await img.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 128;
+      canvas.getContext('2d').drawImage(img, 0, 0, 128, 128);
+      return canvas.toDataURL('image/png');
     } catch {
       return null;
     }
