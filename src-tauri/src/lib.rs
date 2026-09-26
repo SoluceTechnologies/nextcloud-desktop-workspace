@@ -1,3 +1,5 @@
+mod model;
+mod urls;
 mod webviews;
 
 pub fn run() {
