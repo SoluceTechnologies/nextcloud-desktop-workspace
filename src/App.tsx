@@ -4,12 +4,13 @@ import { api } from './api';
 import { AddForm, DialogView, EmptyWorkspace, type Dialog } from './components/Dialogs';
 import { Sidebar } from './components/Sidebar';
 import { TabBar } from './components/TabBar';
-import { useAppState, useTauriEvent } from './hooks';
+import { useAppState, useNotice, useTauriEvent } from './hooks';
 
 export default function App() {
   const state = useAppState();
   const [dialog, setDialog] = useState<Dialog | null>(null);
   useTauriEvent<Dialog>('ui-request', setDialog);
+  const notice = useNotice();
   // Content webviews sit above the shell; hide them while a dialog is open.
   useEffect(() => {
     api.setOverlay(dialog !== null);
@@ -27,7 +28,7 @@ export default function App() {
   return (
     <div className="shell">
       <Sidebar state={state} onAdd={() => setDialog({ kind: 'add' })} />
-      <TabBar workspace={active} notice={null} />
+      <TabBar workspace={active} notice={notice} />
       <main className="content">{content}</main>
     </div>
   );

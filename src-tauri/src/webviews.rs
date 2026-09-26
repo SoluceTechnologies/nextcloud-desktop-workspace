@@ -189,7 +189,7 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
         grant_bridge(app, ws, &url)?;
         granted.insert(ws);
     }
-    let (nav, popup, title) = (app.clone(), app.clone(), app.clone());
+    let (nav, popup, title, dl) = (app.clone(), app.clone(), app.clone(), app.clone());
     let builder = WebviewBuilder::new(&label, WebviewUrl::External(url))
         .initialization_script(BRIDGE_JS)
         .on_navigation(move |u| navigation(&nav, u))
@@ -201,7 +201,8 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
         .on_document_title_changed(move |_, t| {
             let fx = engine(&title).observe_title(tab, &t);
             run(&title, fx);
-        });
+        })
+        .on_download(move |_, event| crate::downloads::handle(&dl, event));
     #[cfg(target_os = "macos")]
     let builder = match safari_user_agent() {
         Some(ua) => builder.user_agent(ua),

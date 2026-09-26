@@ -1,4 +1,5 @@
 mod commands;
+mod downloads;
 mod engine;
 mod menus;
 mod model;
@@ -32,6 +33,7 @@ pub fn run() {
             commands::workspace_menu,
             commands::tab_menu,
             commands::apps_menu,
+            commands::reveal_download,
         ])
         .on_menu_event(|app, event| menus::on_event(app, event.id().as_ref()))
         .setup(|app| {

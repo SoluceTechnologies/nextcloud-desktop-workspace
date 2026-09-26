@@ -6,7 +6,8 @@ use crate::menus;
 use crate::model::AppState;
 use crate::webviews::{engine, run, tab_of};
 use std::sync::Mutex;
-use tauri::{AppHandle, State, Webview};
+use tauri::{AppHandle, Manager, State, Webview};
+use tauri_plugin_opener::OpenerExt;
 use url::Url;
 use uuid::Uuid;
 
@@ -113,4 +114,16 @@ pub fn tab_menu(app: AppHandle, ws: Uuid, tab: Uuid) -> Result<(), String> {
 #[tauri::command]
 pub fn apps_menu(app: AppHandle, ws: Uuid) -> Result<(), String> {
     menus::popup_apps(&app, ws).map_err(|e| e.to_string())
+}
+
+/// "Show" on a download notice. Only paths inside the Downloads folder.
+#[tauri::command]
+pub fn reveal_download(app: AppHandle, path: String) -> Result<(), String> {
+    let dir = app.path().download_dir().map_err(|e| e.to_string())?;
+    let path = std::path::PathBuf::from(path);
+    // `starts_with` compares components, so `Downloads/../x` would pass without the `..` check.
+    if !path.starts_with(&dir) || path.components().any(|c| c == std::path::Component::ParentDir) {
+        return Err("not a download".into());
+    }
+    app.opener().reveal_item_in_dir(path).map_err(|e| e.to_string())
 }
