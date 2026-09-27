@@ -56,8 +56,8 @@ describe('TabBar', () => {
     fireEvent.click(filesTab);
     expect(api.activateTab).toHaveBeenCalledWith('w', 't1');
     fireEvent.contextMenu(filesTab);
-    expect(api.tabMenu).toHaveBeenCalledWith('w', 't1');
+    expect(api.tabMenu).toHaveBeenCalledWith('w', 't1', { x: 0, y: 0 });
     fireEvent.click(screen.getByRole('button', { name: 'Open app' }));
-    expect(api.appsMenu).toHaveBeenCalledWith('w');
+    expect(api.appsMenu).toHaveBeenCalledWith('w', { x: 0, y: 0 });
   });
 });

@@ -36,9 +36,20 @@ windows-core = "0.61"
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk = { version = "2.0", features = ["v2_38"] }
 glib = "0.18"
+gtk = "0.18"
 
 [dev-dependencies]
 tempfile = "3"
+
+# Linux only: upstream child-webview positioning is broken on GTK (webviews get
+# packed into a vbox and stack instead of overlaying at their set position/size).
+# See https://github.com/tauri-apps/tauri/issues/10420 and
+# https://github.com/tauri-apps/tauri/issues/16132. Vendored 2.11.4 with child
+# webviews mounted in a gtk::Layout and positioned via move_/set_size_request
+# (see place_in_layout in vendor/tauri-runtime-wry/src/lib.rs). Linux/BSD only;
+# other platforms compile the stock code paths. Remove once fixed upstream.
+[patch.crates-io]
+tauri-runtime-wry = { path = "vendor/tauri-runtime-wry" }
 
 [profile.release]
 codegen-units = 1

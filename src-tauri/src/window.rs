@@ -27,6 +27,8 @@ pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
         .min_inner_size(800.0, 500.0);
     #[cfg(target_os = "macos")]
     let builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
+    #[cfg(target_os = "linux")]
+    gtk_theme::remember_system_theme();
     let window = builder.build()?;
     window.add_child(
         WebviewBuilder::new("shell", WebviewUrl::App("index.html".into())).auto_resize(),
@@ -52,8 +54,44 @@ pub fn main_window(app: &AppHandle) -> Result<Window, Box<dyn Error>> {
 pub fn apply_theme(app: &AppHandle, appearance: Appearance) -> EffectResult {
     let window = main_window(app)?;
     window.set_theme(window_theme(appearance))?;
+    #[cfg(target_os = "linux")]
+    app.run_on_main_thread(move || gtk_theme::apply(appearance))?;
     paint_chrome(&window, window.theme()?);
     Ok(())
+}
+
+// WebKitGTK derives prefers-color-scheme from the GTK theme name too, and tao only
+// strips a "-dark" theme suffix at window creation, so switching to Light at
+// runtime under e.g. Yaru-dark kept everything dark.
+#[cfg(target_os = "linux")]
+mod gtk_theme {
+    use crate::model::Appearance;
+    use gtk::prelude::GtkSettingsExt;
+    use std::sync::OnceLock;
+
+    const DARK_SUFFIXES: [&str; 5] = ["-dark", "-Dark", "-darker", "-Darker", ":dark"];
+
+    static SYSTEM_THEME: OnceLock<Option<String>> = OnceLock::new();
+
+    pub fn remember_system_theme() {
+        SYSTEM_THEME.get_or_init(|| gtk::Settings::default()?.gtk_theme_name().map(Into::into));
+    }
+
+    pub fn apply(appearance: Appearance) {
+        let Some(settings) = gtk::Settings::default() else { return };
+        if let Some(system) = SYSTEM_THEME.get().cloned().flatten() {
+            let name = match appearance {
+                Appearance::Light => light_variant(&system),
+                _ => &system,
+            };
+            settings.set_gtk_theme_name(Some(name));
+        }
+        settings.set_gtk_application_prefer_dark_theme(appearance == Appearance::Dark);
+    }
+
+    pub fn light_variant(name: &str) -> &str {
+        DARK_SUFFIXES.iter().find_map(|suffix| name.strip_suffix(suffix)).unwrap_or(name)
+    }
 }
 
 pub fn content_rect(window: &Window) -> tauri::Result<Rect> {
@@ -67,8 +105,7 @@ pub fn content_rect(window: &Window) -> tauri::Result<Rect> {
 pub fn relayout(window: &Window) {
     for webview in content_webviews(window) {
         if let Ok((position, size)) = rect_for(window, webview.label()) {
-            let _ = webview.set_position(position);
-            let _ = webview.set_size(size);
+            let _ = webview.set_bounds(bounds(position, size));
         }
     }
 }
@@ -78,8 +115,7 @@ pub fn show_only(app: &AppHandle, target_label: Option<&str>) -> EffectResult {
     for webview in content_webviews(&window) {
         if Some(webview.label()) == target_label {
             let (position, size) = rect_for(&window, webview.label())?;
-            webview.set_position(position)?;
-            webview.set_size(size)?;
+            webview.set_bounds(bounds(position, size))?;
             webview.show()?;
             webview.set_focus()?;
         } else {
@@ -87,6 +123,14 @@ pub fn show_only(app: &AppHandle, target_label: Option<&str>) -> EffectResult {
         }
     }
     Ok(())
+}
+
+// A single set_bounds call, rather than separate set_position/set_size calls: on
+// Linux/GTK, wry's webview.bounds() (used internally to fill in the field the other
+// setter doesn't touch) only tracks position under X11 and otherwise reports (0, 0),
+// so two separate calls made the second silently wipe out the first one's position.
+fn bounds(position: LogicalPosition<f64>, size: LogicalSize<f64>) -> tauri::Rect {
+    tauri::Rect { position: position.into(), size: size.into() }
 }
 
 fn content_webviews(window: &Window) -> Vec<Webview> {

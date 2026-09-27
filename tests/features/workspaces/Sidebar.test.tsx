@@ -38,7 +38,7 @@ describe('Sidebar', () => {
     fireEvent.click(btn);
     expect(api.activateWorkspace).toHaveBeenCalledWith('a');
     fireEvent.contextMenu(btn);
-    expect(api.workspaceMenu).toHaveBeenCalledWith('a');
+    expect(api.workspaceMenu).toHaveBeenCalledWith('a', { x: 0, y: 0 });
   });
 
   it('while adding, marks + as current instead of the workspace, and a workspace click leaves it', () => {

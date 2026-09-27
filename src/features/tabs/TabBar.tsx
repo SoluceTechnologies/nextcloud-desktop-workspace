@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { CloseIcon, PinIcon, PlusIcon } from '@/components/icons';
 import { api } from '@/lib/api';
+import { atPointer, below } from '@/lib/menuAnchor';
 import { move } from '@/lib/move';
 import type { Workspace } from '@/lib/types';
 import './TabBar.css';
@@ -46,7 +47,7 @@ export function TabBar(props: { workspace: Workspace | null; loadingTabs: Set<st
               }}
               onContextMenu={(event) => {
                 event.preventDefault();
-                api.tabMenu(workspaceId, tab.id);
+                api.tabMenu(workspaceId, tab.id, atPointer(event));
               }}
             >
               {loading ? (
@@ -75,7 +76,12 @@ export function TabBar(props: { workspace: Workspace | null; loadingTabs: Set<st
           );
         })}
       </div>
-      <button className="add" title="Open app" aria-label="Open app" onClick={() => api.appsMenu(workspaceId)}>
+      <button
+        className="add"
+        title="Open app"
+        aria-label="Open app"
+        onClick={(event) => api.appsMenu(workspaceId, below(event.currentTarget))}
+      >
         <PlusIcon size={16} />
       </button>
       {notice}

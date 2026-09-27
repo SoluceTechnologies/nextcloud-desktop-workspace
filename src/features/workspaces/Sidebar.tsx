@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { PlusIcon } from '@/components/icons';
 import { AppearanceSwitch } from '@/features/appearance/AppearanceSwitch';
 import { api } from '@/lib/api';
+import { atPointer } from '@/lib/menuAnchor';
 import { move } from '@/lib/move';
 import type { AppState } from '@/lib/types';
 import { TileFace } from './WorkspaceTile';
@@ -48,7 +49,7 @@ export function Sidebar(props: {
                 }}
                 onContextMenu={(event) => {
                   event.preventDefault();
-                  api.workspaceMenu(workspace.id);
+                  api.workspaceMenu(workspace.id, atPointer(event));
                 }}
               >
                 <TileFace icon={workspace.icon} name={workspace.name} />
