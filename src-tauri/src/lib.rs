@@ -6,6 +6,7 @@ mod engine;
 mod media;
 mod menus;
 mod model;
+mod monitor;
 mod router;
 mod session;
 mod store;
@@ -41,6 +42,7 @@ pub fn run() {
             commands::tab_menu,
             commands::apps_menu,
             commands::reveal_download,
+            commands::retry_tab,
         ])
         .on_menu_event(|app, event| menus::on_event(app, event.id().as_ref()))
         .setup(|app| {

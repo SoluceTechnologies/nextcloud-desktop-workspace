@@ -20,7 +20,7 @@ fn main() {
             "tab_menu",
             "apps_menu",
             "reveal_download",
-            // nextcloud pages (granted at runtime per workspace origin)
+            "retry_tab",
             "nc_report_location",
             "nc_report_meta",
             "nc_report_fullscreen",

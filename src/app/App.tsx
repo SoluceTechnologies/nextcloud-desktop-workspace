@@ -3,7 +3,9 @@ import { Notice } from '@/features/notices/Notice';
 import { useNotice } from '@/features/notices/useNotice';
 import { EmptyWorkspace } from '@/features/tabs/EmptyWorkspace';
 import { TabBar } from '@/features/tabs/TabBar';
+import { Unreachable } from '@/features/tabs/Unreachable';
 import { useLoadingTabs } from '@/features/tabs/useLoadingTabs';
+import { useOfflineTabs } from '@/features/tabs/useOfflineTabs';
 import { AddServerForm } from '@/features/workspaces/AddServerForm';
 import { Sidebar } from '@/features/workspaces/Sidebar';
 import { api } from '@/lib/api';
@@ -18,6 +20,7 @@ export default function App() {
   useTauriEvent<Dialog>('ui-request', setDialog);
   const notice = useNotice();
   const loading = useLoadingTabs();
+  const offline = useOfflineTabs();
 
   useEffect(() => {
     api.setOverlay(dialog !== null);
@@ -32,6 +35,8 @@ export default function App() {
   if (dialog) content = <DialogHost dialog={dialog} state={state} onClose={close} />;
   else if (state.workspaces.length === 0) content = <AddServerForm />;
   else if (active && active.tabs.length === 0) content = <EmptyWorkspace ws={active.id} />;
+  else if (active?.activeTabId && offline.has(active.activeTabId))
+    content = <Unreachable tab={active.activeTabId} server={active.name} />;
 
   return (
     <div className={bare ? 'shell bare' : 'shell'}>

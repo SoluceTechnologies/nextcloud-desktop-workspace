@@ -459,6 +459,22 @@ fn title_page_part_truncated_to_max_title() {
 }
 
 #[test]
+fn offline_tab_is_hidden_until_retried_at_its_url() {
+    let mut e = engine_with(&["https://a.com"], MAX_LIVE);
+    let tab = e.state.workspaces[0].tabs[0].id;
+    let fx = e.set_offline(tab);
+    assert!(e.is_offline(tab));
+    assert_eq!(shown(&fx), None);
+    assert!(fx.contains(&Effect::HideContent));
+    assert!(e.set_offline(tab).is_empty());
+    let fx = e.retry_tab(tab);
+    assert!(!e.is_offline(tab));
+    assert!(fx.contains(&Effect::Navigate { ws: ws(&e, 0), tab, url: u("https://a.com/") }));
+    assert_eq!(shown(&fx), Some(tab));
+    assert!(e.retry_tab(tab).is_empty());
+}
+
+#[test]
 fn login_flow_reuses_the_sign_in_tab_then_goes_home() {
     let mut e = engine_with(&["https://a.com"], MAX_LIVE);
     let w = ws(&e, 0);

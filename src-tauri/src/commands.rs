@@ -102,6 +102,7 @@ pub fn set_theme(app: AppHandle, theme: Appearance) {
 #[tauri::command]
 pub fn nc_report_location(app: AppHandle, webview: Webview, url: String) {
     let (Some(tab), Ok(url)) = (tab_of(webview.label()), Url::parse(&url)) else { return };
+    crate::monitor::page_reported(tab);
     apply(&app, |e| e.observe_location(tab, url));
 }
 
@@ -135,6 +136,11 @@ pub fn reveal_download(app: AppHandle, path: String) -> Result<(), String> {
         return Err("not a download".into());
     }
     app.opener().reveal_item_in_dir(path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn retry_tab(app: AppHandle, tab: Uuid) {
+    crate::monitor::retry(&app, tab);
 }
 
 #[tauri::command]

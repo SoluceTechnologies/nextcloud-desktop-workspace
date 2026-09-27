@@ -36,13 +36,14 @@ pub enum Effect {
 pub struct Engine {
     pub state: AppState,
     live: Vec<Uuid>,
+    offline: HashSet<Uuid>,
     overlay: bool,
     max_live: usize,
 }
 
 impl Engine {
     pub fn new(state: AppState, max_live: usize) -> Self {
-        Self { state, live: Vec::new(), overlay: false, max_live }
+        Self { state, live: Vec::new(), offline: HashSet::new(), overlay: false, max_live }
     }
 
     pub fn set_icon(&mut self, ws: Uuid, icon: Option<String>) -> Vec<Effect> {
@@ -208,6 +209,27 @@ impl Engine {
             Some(tab) => self.reload_tab(ws, tab),
             None => Vec::new(),
         }
+    }
+
+    pub fn is_offline(&self, tab: Uuid) -> bool {
+        self.offline.contains(&tab)
+    }
+
+    pub fn set_offline(&mut self, tab: Uuid) -> Vec<Effect> {
+        if self.state.find_tab(tab).is_none() || !self.offline.insert(tab) {
+            return Vec::new();
+        }
+        self.presented(Vec::new())
+    }
+
+    pub fn retry_tab(&mut self, tab: Uuid) -> Vec<Effect> {
+        if !self.offline.remove(&tab) {
+            return Vec::new();
+        }
+        let Some((w, t)) = self.state.find_tab(tab) else { return Vec::new() };
+        let (ws, url) = (w.id, t.url.clone());
+        let fx = if self.is_live(tab) { vec![Effect::Navigate { ws, tab, url }] } else { Vec::new() };
+        self.presented(fx)
     }
 
     pub fn set_login(&mut self, ws: Uuid, login: Option<String>) -> Vec<Effect> {
@@ -393,6 +415,7 @@ impl Engine {
     }
 
     fn kill(&mut self, ws: Uuid, tab: Uuid, fx: &mut Vec<Effect>) {
+        self.offline.remove(&tab);
         if self.is_live(tab) {
             self.live.retain(|&t| t != tab);
             fx.push(Effect::Destroy { ws, tab });
@@ -413,7 +436,7 @@ impl Engine {
                 self.live.retain(|&t| t != tab);
                 self.live.push(tab);
                 self.evict(&mut fx);
-                fx.push(Effect::Show { ws, tab });
+                fx.push(if self.offline.contains(&tab) { Effect::HideContent } else { Effect::Show { ws, tab } });
             }
             _ => fx.push(Effect::HideContent),
         }
@@ -428,6 +451,7 @@ impl Engine {
             let Some(victim) = self.live.iter().copied().find(|&t| t != shown && !pinned(t)) else { break };
             let ws = self.state.find_tab(victim).map(|(w, _)| w.id);
             self.live.retain(|&t| t != victim);
+            self.offline.remove(&victim);
             if let Some(ws) = ws {
                 fx.push(Effect::Destroy { ws, tab: victim });
             }

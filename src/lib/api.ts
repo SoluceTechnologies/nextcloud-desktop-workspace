@@ -20,4 +20,5 @@ export const api = {
   tabMenu: (ws: string, tab: string) => invoke<void>('tab_menu', { ws, tab }),
   appsMenu: (ws: string) => invoke<void>('apps_menu', { ws }),
   revealDownload: (path: string) => invoke<void>('reveal_download', { path }),
+  retryTab: (tab: string) => invoke<void>('retry_tab', { tab }),
 };

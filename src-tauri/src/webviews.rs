@@ -2,7 +2,7 @@ use crate::engine::{Effect, Engine, Shared};
 use crate::model::{AppState, Appearance};
 use crate::router::{self, Route};
 use crate::session::{self, Decision, RetryBudget};
-use crate::{auth, store};
+use crate::{auth, monitor, store};
 use std::collections::HashSet;
 use std::error::Error;
 use std::path::PathBuf;
@@ -284,6 +284,9 @@ struct TabLoading {
 }
 
 pub fn loading(app: &AppHandle, tab: Uuid, loading: bool) {
+    if loading {
+        monitor::watch_load(app, tab);
+    }
     let _ = app.emit_to("shell", "tab-loading", TabLoading { tab, loading });
 }
 
