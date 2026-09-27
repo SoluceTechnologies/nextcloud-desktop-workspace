@@ -7,6 +7,8 @@ fn action_ids_round_trip() {
         Action::WsRename(w),
         Action::WsReload(w),
         Action::WsClear(w),
+        Action::WsSignIn(w),
+        Action::WsSignOut(w),
         Action::WsRemove(w),
         Action::TabPin(w, t, true),
         Action::TabPin(w, t, false),

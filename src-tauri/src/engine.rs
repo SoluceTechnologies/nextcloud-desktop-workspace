@@ -210,6 +210,39 @@ impl Engine {
         }
     }
 
+    pub fn set_login(&mut self, ws: Uuid, login: Option<String>) -> Vec<Effect> {
+        match self.state.ws_mut(ws) {
+            Some(w) if w.login != login => {
+                w.login = login;
+                vec![Effect::Changed]
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    pub fn open_login(&mut self, ws: Uuid, url: Url) -> (Uuid, Vec<Effect>) {
+        let Some(w) = self.state.ws(ws) else { return (Uuid::nil(), Vec::new()) };
+        let mut fx = Vec::new();
+        let tab = match w.tab_by_app(AUTH).map(|t| t.id) {
+            Some(t) => {
+                self.navigate_tab(ws, t, url, &mut fx);
+                t
+            }
+            None => self.push_tab(ws, AUTH, url),
+        };
+        self.select(ws, tab);
+        (tab, self.presented(fx))
+    }
+
+    pub fn finish_login(&mut self, ws: Uuid, tab: Uuid, login: &str) -> Vec<Effect> {
+        let mut fx = self.set_login(ws, Some(login.to_string()));
+        if let Some(base) = self.state.ws(ws).map(|w| w.base_url.clone()) {
+            self.navigate_tab(ws, tab, base, &mut fx);
+        }
+        fx.push(Effect::Changed);
+        fx
+    }
+
     pub fn clear_browsing_data(&mut self, ws: Uuid) -> Vec<Effect> {
         let Some(w) = self.state.ws(ws) else { return Vec::new() };
         let mut fx = vec![Effect::ClearProfile { ws, delete: false }];

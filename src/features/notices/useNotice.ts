@@ -9,6 +9,7 @@ export function useNotice(): NoticeData | null {
   useEffect(() => {
     api.takeNotice().then((text) => text && setNotice({ text }));
   }, []);
+  useTauriEvent<string>('notice', (text) => setNotice({ text }));
   useTauriEvent<{ path: string | null; success: boolean }>('download-finished', (d) => {
     const name = d.path?.split(/[\\/]/).pop() ?? 'file';
     setNotice(d.success ? { text: `Downloaded ${name}`, path: d.path ?? undefined } : { text: 'Download failed' });

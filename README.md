@@ -27,6 +27,18 @@ The buttons download the installer from the [latest release](https://github.com/
 - Downloads go to your Downloads folder; Talk calls with microphone and camera
 - Light, dark or system appearance
 
+## Staying signed in
+
+A new workspace signs in with Nextcloud's Login Flow v2 (the same “Grant access” page the desktop client uses). The app password it gets is kept in the system keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux) and signs the workspace in again whenever the browser session expires, so the login page only comes back if the password is revoked. Existing workspaces: right-click the workspace → **Stay signed in…**. Signing out from Nextcloud, **Sign out**, **Clear browsing data** or removing the workspace deletes the app password on the server too.
+
+Server administrators can make web sessions last longer in `config/config.php`:
+
+```php
+'session_lifetime' => 60 * 60 * 24 * 7,           // idle web session, default 1 day
+'session_keepalive' => true,                       // open pages keep the session alive (default)
+'remember_login_cookie_lifetime' => 60 * 60 * 24 * 30, // "remember me" cookie, default 15 days
+```
+
 ## Requirements
 
 macOS 14 or later, Windows 10/11 (WebView2), or Linux with WebKitGTK 4.1.

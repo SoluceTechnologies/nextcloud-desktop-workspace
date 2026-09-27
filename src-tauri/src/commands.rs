@@ -31,13 +31,20 @@ pub fn add_workspace(app: AppHandle, url: String) -> Result<(), String> {
     if crate::webviews::bridge_pattern(&base).is_err() {
         return Err("This server address is not supported".into());
     }
+    let known = engine(&app).state.workspaces.iter().any(|w| w.base_url == base);
     let fx = engine(&app).add_workspace(&url)?;
     run(&app, fx);
+
+    let ws = engine(&app).state.active_workspace_id;
+    if let (false, Some(ws)) = (known, ws) {
+        crate::auth::sign_in(&app, ws);
+    }
     Ok(())
 }
 
 #[tauri::command]
 pub fn remove_workspace(app: AppHandle, ws: Uuid) {
+    crate::auth::sign_out(&app, ws, true);
     apply(&app, |e| e.remove_workspace(ws));
 }
 
@@ -78,6 +85,7 @@ pub fn set_overlay(app: AppHandle, on: bool) {
 
 #[tauri::command]
 pub fn clear_browsing_data(app: AppHandle, ws: Uuid) {
+    crate::auth::sign_out(&app, ws, true);
     apply(&app, |e| e.clear_browsing_data(ws));
 }
 

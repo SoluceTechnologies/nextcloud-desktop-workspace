@@ -1,12 +1,14 @@
 use crate::engine::{Effect, Engine, Shared};
 use crate::model::{AppState, Appearance};
 use crate::router::{self, Route};
-use crate::store;
+use crate::session::{self, Decision, RetryBudget};
+use crate::{auth, store};
 use std::collections::HashSet;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{LazyLock, Mutex, MutexGuard};
+use std::time::Instant;
 use tauri::ipc::CapabilityBuilder;
 use tauri::utils::config::BackgroundThrottlingPolicy;
 use tauri::webview::{NewWindowResponse, PageLoadEvent, WebviewBuilder};
@@ -30,6 +32,10 @@ pub struct StorePath(pub PathBuf);
 
 pub fn engine(app: &AppHandle) -> MutexGuard<'_, Engine> {
     app.state::<Shared>().inner().lock().unwrap_or_else(|e| e.into_inner())
+}
+
+pub fn notice(app: &AppHandle, text: impl Into<String>) {
+    let _ = app.emit_to("shell", "notice", text.into());
 }
 
 pub fn run(app: &AppHandle, fx: Vec<Effect>) {
@@ -239,7 +245,7 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
     let builder = WebviewBuilder::new(&label, WebviewUrl::External(url))
         .background_throttling(BackgroundThrottlingPolicy::Throttle)
         .initialization_script(BRIDGE_JS)
-        .on_navigation(move |u| navigation(&nav, u))
+        .on_navigation(move |u| navigation(&nav, ws, tab, u))
         .on_new_window(move |u, _features| {
             let fx = engine(&popup).on_new_window(&u);
             run(&popup, fx);
@@ -250,7 +256,13 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
             run(&title, fx);
         })
         .on_download(move |_, event| crate::downloads::handle(&dl, event))
-        .on_page_load(move |_, page| loading(&load, tab, page.event() == PageLoadEvent::Started));
+        .on_page_load(move |_, page| match page.event() {
+            PageLoadEvent::Started => loading(&load, tab, true),
+            PageLoadEvent::Finished => {
+                loading(&load, tab, false);
+                budget().release_if_answered(tab, page.url());
+            }
+        });
     #[cfg(target_os = "macos")]
     let builder = match safari_user_agent() {
         Some(ua) => builder.user_agent(ua),
@@ -271,7 +283,7 @@ struct TabLoading {
     loading: bool,
 }
 
-fn loading(app: &AppHandle, tab: Uuid, loading: bool) {
+pub fn loading(app: &AppHandle, tab: Uuid, loading: bool) {
     let _ = app.emit_to("shell", "tab-loading", TabLoading { tab, loading });
 }
 
@@ -303,14 +315,46 @@ fn grant_bridge(app: &AppHandle, ws: Uuid, url: &Url) -> Res {
     Ok(())
 }
 
-fn navigation(app: &AppHandle, url: &Url) -> bool {
+fn budget() -> MutexGuard<'static, RetryBudget> {
+    static BUDGET: LazyLock<Mutex<RetryBudget>> = LazyLock::new(Default::default);
+    BUDGET.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn navigation(app: &AppHandle, ws: Uuid, tab: Uuid, url: &Url) -> bool {
     match router::classify_navigation(url) {
-        Route::InPlace => true,
+        Route::InPlace => keep_signed_in(app, ws, tab, url),
         Route::External(u) => {
             run(app, vec![Effect::OpenExternal(u)]);
             false
         }
         Route::Activate { .. } | Route::Deny => false,
+    }
+}
+
+fn keep_signed_in(app: &AppHandle, ws: Uuid, tab: Uuid, url: &Url) -> bool {
+    let Some((base, signed_in)) = engine(app).state.ws(ws).map(|w| (w.base_url.clone(), w.login.is_some())) else {
+        return true;
+    };
+    let decision = session::decide(url, &base, signed_in, &mut budget(), tab, Instant::now());
+    match decision {
+        Decision::Allow => true,
+        Decision::Reauth(target) => {
+            auth::reload_signed_in(app, ws, tab, target);
+            false
+        }
+        Decision::Looping => {
+            notice(app, "This workspace keeps losing its session. Sign in on the page to continue.");
+            true
+        }
+        Decision::Rejected => {
+            auth::sign_out(app, ws, false);
+            notice(app, "The app password was rejected. Sign in, then choose “Stay signed in…” in the workspace menu.");
+            true
+        }
+        Decision::SignOut => {
+            auth::sign_out(app, ws, true);
+            true
+        }
     }
 }
 

@@ -457,3 +457,23 @@ fn title_page_part_truncated_to_max_title() {
     assert_eq!(title.chars().count(), MAX_TITLE);
     assert_eq!(title, &"x".repeat(MAX_TITLE));
 }
+
+#[test]
+fn login_flow_reuses_the_sign_in_tab_then_goes_home() {
+    let mut e = engine_with(&["https://a.com"], MAX_LIVE);
+    let w = ws(&e, 0);
+    let auth = e.state.workspaces[0].tabs[0].id;
+    let (tab, fx) = e.open_login(w, u("https://a.com/login/v2/flow/x"));
+    assert_eq!(tab, auth);
+    assert!(fx.contains(&Effect::Navigate { ws: w, tab, url: u("https://a.com/login/v2/flow/x") }));
+    let fx = e.finish_login(w, tab, "me");
+    assert_eq!(e.state.workspaces[0].login.as_deref(), Some("me"));
+    assert!(fx.contains(&Effect::Navigate { ws: w, tab, url: u("https://a.com/") }));
+    assert!(e.set_login(w, Some("me".into())).is_empty());
+    assert_eq!(e.set_login(w, None), vec![Effect::Changed]);
+
+    e.observe_location(tab, u("https://a.com/apps/files/"));
+    let (other, _) = e.open_login(w, u("https://a.com/login/v2/flow/y"));
+    assert_ne!(other, tab);
+    assert_eq!(e.state.workspaces[0].active_tab_id, Some(other));
+}

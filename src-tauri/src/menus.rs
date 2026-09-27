@@ -11,6 +11,8 @@ pub enum Action {
     WsRename(Uuid),
     WsReload(Uuid),
     WsClear(Uuid),
+    WsSignIn(Uuid),
+    WsSignOut(Uuid),
     WsRemove(Uuid),
     TabPin(Uuid, Uuid, bool),
     TabReload(Uuid, Uuid),
@@ -26,6 +28,8 @@ impl Action {
             Action::WsRename(w) => format!("ws-rename|{w}"),
             Action::WsReload(w) => format!("ws-reload|{w}"),
             Action::WsClear(w) => format!("ws-clear|{w}"),
+            Action::WsSignIn(w) => format!("ws-sign-in|{w}"),
+            Action::WsSignOut(w) => format!("ws-sign-out|{w}"),
             Action::WsRemove(w) => format!("ws-remove|{w}"),
             Action::TabPin(w, t, pin) => format!("tab-pin|{w}|{t}|{pin}"),
             Action::TabReload(w, t) => format!("tab-reload|{w}|{t}"),
@@ -43,6 +47,8 @@ impl Action {
             "ws-rename" => Action::WsRename(uuid(1)?),
             "ws-reload" => Action::WsReload(uuid(1)?),
             "ws-clear" => Action::WsClear(uuid(1)?),
+            "ws-sign-in" => Action::WsSignIn(uuid(1)?),
+            "ws-sign-out" => Action::WsSignOut(uuid(1)?),
             "ws-remove" => Action::WsRemove(uuid(1)?),
             "tab-pin" => Action::TabPin(uuid(1)?, uuid(2)?, *parts.get(3)? == "true"),
             "tab-reload" => Action::TabReload(uuid(1)?, uuid(2)?),
@@ -75,9 +81,14 @@ pub fn popup_workspace(app: &AppHandle, ws: Uuid) -> tauri::Result<()> {
     let rename = item(app, Action::WsRename(ws), "Edit workspace…")?;
     let reload = item(app, Action::WsReload(ws), "Reload")?;
     let clear = item(app, Action::WsClear(ws), "Clear browsing data…")?;
+    let login = engine(app).state.ws(ws).and_then(|w| w.login.clone());
+    let session = match login {
+        Some(name) => item(app, Action::WsSignOut(ws), &format!("Sign out ({name})"))?,
+        None => item(app, Action::WsSignIn(ws), "Stay signed in…")?,
+    };
     let sep = PredefinedMenuItem::separator(app)?;
     let remove = item(app, Action::WsRemove(ws), "Remove workspace…")?;
-    popup(app, &[&rename, &reload, &clear, &sep, &remove])
+    popup(app, &[&rename, &reload, &clear, &session, &sep, &remove])
 }
 
 pub fn popup_tab(app: &AppHandle, ws: Uuid, tab: Uuid) -> tauri::Result<()> {
@@ -120,6 +131,8 @@ pub fn on_event(app: &AppHandle, id: &str) {
         Action::WsRename(ws) => return request("edit", ws, None),
         Action::WsClear(ws) => return request("confirm-clear", ws, None),
         Action::WsRemove(ws) => return request("confirm-remove", ws, None),
+        Action::WsSignIn(ws) => return crate::auth::sign_in(app, ws),
+        Action::WsSignOut(ws) => return crate::auth::sign_out(app, ws, true),
         Action::WsReload(ws) => engine(app).reload_workspace(ws),
         Action::TabPin(ws, tab, pin) => engine(app).set_pinned(ws, tab, pin),
         Action::TabReload(ws, tab) => engine(app).reload_tab(ws, tab),

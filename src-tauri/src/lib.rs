@@ -1,3 +1,4 @@
+mod auth;
 mod commands;
 mod downloads;
 mod engine;
@@ -6,6 +7,7 @@ mod media;
 mod menus;
 mod model;
 mod router;
+mod session;
 mod store;
 mod urls;
 mod webviews;

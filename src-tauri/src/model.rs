@@ -43,6 +43,8 @@ pub struct Workspace {
     pub icon_custom: bool,
     #[serde(default)]
     pub apps: Vec<AppEntry>,
+    #[serde(default)]
+    pub login: Option<String>,
     pub tabs: Vec<Tab>,
     pub active_tab_id: Option<Uuid>,
 }
@@ -96,6 +98,7 @@ impl Workspace {
             icon: None,
             icon_custom: false,
             apps: Vec::new(),
+            login: None,
             active_tab_id: Some(tab.id),
             tabs: vec![tab],
             base_url,
