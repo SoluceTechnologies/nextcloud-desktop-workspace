@@ -6,47 +6,47 @@ import type { AppState } from '@/lib/types';
 
 export type Dialog =
   | { kind: 'add' }
-  | { kind: 'edit'; ws: string }
-  | { kind: 'confirm-remove'; ws: string }
-  | { kind: 'confirm-clear'; ws: string }
-  | { kind: 'confirm-close'; ws: string; tab: string };
+  | { kind: 'edit'; workspaceId: string }
+  | { kind: 'confirm-remove'; workspaceId: string }
+  | { kind: 'confirm-clear'; workspaceId: string }
+  | { kind: 'confirm-close'; workspaceId: string; tabId: string };
 
 export function DialogHost({ dialog, state, onClose }: { dialog: Dialog; state: AppState; onClose: () => void }) {
   if (dialog.kind === 'add') return <AddServerForm onDone={onClose} />;
-  const ws = state.workspaces.find((w) => w.id === dialog.ws);
-  if (!ws) return null;
+  const workspace = state.workspaces.find((candidate) => candidate.id === dialog.workspaceId);
+  if (!workspace) return null;
   switch (dialog.kind) {
     case 'edit':
-      return <EditWorkspaceForm ws={ws} onDone={onClose} />;
+      return <EditWorkspaceForm workspace={workspace} onDone={onClose} />;
     case 'confirm-remove':
       return (
         <ConfirmSheet
-          title={`Remove ${ws.name}?`}
+          title={`Remove ${workspace.name}?`}
           body="Its tabs, settings and browsing data are deleted from this computer. You will be signed out."
           action="Remove"
-          onConfirm={() => api.removeWorkspace(ws.id)}
+          onConfirm={() => api.removeWorkspace(workspace.id)}
           onDone={onClose}
         />
       );
     case 'confirm-clear':
       return (
         <ConfirmSheet
-          title={`Clear browsing data of ${ws.name}?`}
+          title={`Clear browsing data of ${workspace.name}?`}
           body="Cookies, storage and cache of this workspace are deleted. You will be signed out."
           action="Clear data"
-          onConfirm={() => api.clearBrowsingData(ws.id)}
+          onConfirm={() => api.clearBrowsingData(workspace.id)}
           onDone={onClose}
         />
       );
     case 'confirm-close': {
-      const tab = ws.tabs.find((t) => t.id === dialog.tab);
+      const tab = workspace.tabs.find((candidate) => candidate.id === dialog.tabId);
       if (!tab) return null;
       return (
         <ConfirmSheet
           title={`Close pinned tab ${tab.title}?`}
           body="The tab and its page state are closed."
           action="Close tab"
-          onConfirm={() => api.closeTab(ws.id, tab.id)}
+          onConfirm={() => api.closeTab(workspace.id, tab.id)}
           onDone={onClose}
         />
       );

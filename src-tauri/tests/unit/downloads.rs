@@ -17,12 +17,13 @@ fn sanitize_strips_path_tricks() {
 
 #[test]
 fn unique_path_numbers_duplicates() {
-    let dir = tempfile::tempdir().unwrap();
-    assert_eq!(unique_path(dir.path(), "a.pdf"), dir.path().join("a.pdf"));
-    std::fs::write(dir.path().join("a.pdf"), "").unwrap();
-    assert_eq!(unique_path(dir.path(), "a.pdf"), dir.path().join("a (1).pdf"));
-    std::fs::write(dir.path().join("a (1).pdf"), "").unwrap();
-    assert_eq!(unique_path(dir.path(), "a.pdf"), dir.path().join("a (2).pdf"));
-    std::fs::write(dir.path().join("README"), "").unwrap();
-    assert_eq!(unique_path(dir.path(), "README"), dir.path().join("README (1)"));
+    let directory = tempfile::tempdir().unwrap();
+    let folder = directory.path();
+    assert_eq!(unique_path(folder, "a.pdf"), folder.join("a.pdf"));
+    std::fs::write(folder.join("a.pdf"), "").unwrap();
+    assert_eq!(unique_path(folder, "a.pdf"), folder.join("a (1).pdf"));
+    std::fs::write(folder.join("a (1).pdf"), "").unwrap();
+    assert_eq!(unique_path(folder, "a.pdf"), folder.join("a (2).pdf"));
+    std::fs::write(folder.join("README"), "").unwrap();
+    assert_eq!(unique_path(folder, "README"), folder.join("README (1)"));
 }

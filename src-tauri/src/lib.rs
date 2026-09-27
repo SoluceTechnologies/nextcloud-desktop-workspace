@@ -2,16 +2,23 @@ mod auth;
 mod commands;
 mod downloads;
 mod engine;
+mod http;
+mod keychain;
 #[cfg(target_os = "linux")]
 mod media;
 mod menus;
 mod model;
-mod monitor;
+mod notifications;
+mod offline;
+mod profiles;
 mod router;
+mod runtime;
 mod session;
+mod signed_load;
 mod store;
 mod urls;
 mod webviews;
+mod window;
 
 use engine::{Engine, MAX_LIVE};
 use std::sync::{mpsc, Mutex};
@@ -32,18 +39,18 @@ pub fn run() {
             commands::activate_tab,
             commands::close_tab,
             commands::reorder_tabs,
+            commands::retry_tab,
             commands::set_overlay,
             commands::clear_browsing_data,
             commands::set_theme,
             commands::set_workspace_icon,
-            commands::nc_report_location,
-            commands::nc_report_meta,
-            commands::nc_report_fullscreen,
             commands::workspace_menu,
             commands::tab_menu,
             commands::apps_menu,
             commands::reveal_download,
-            commands::retry_tab,
+            commands::nc_report_location,
+            commands::nc_report_meta,
+            commands::nc_report_fullscreen,
         ])
         .on_menu_event(|app, event| menus::on_event(app, event.id().as_ref()))
         .setup(|app| {
@@ -52,17 +59,17 @@ pub fn run() {
             let (state, notice) = store::load(&store_path);
             let sweep_state = notice.is_none().then(|| state.clone());
             let mut engine = Engine::new(state, MAX_LIVE);
-            let startup = engine.startup();
-            let (tx, rx) = mpsc::channel();
+            let startup_effects = engine.startup();
+            let (sender, receiver) = mpsc::channel();
             app.manage(Mutex::new(engine));
             app.manage(commands::Notice(Mutex::new(notice)));
-            app.manage(webviews::StorePath(store_path));
-            app.manage(webviews::EffectTx(tx));
-            app.manage(webviews::Fullscreen::default());
-            webviews::create_main_window(&handle)?;
-            webviews::spawn_worker(handle.clone(), rx, sweep_state);
-            webviews::run(&handle, startup);
-            monitor::spawn_poller(handle.clone());
+            app.manage(runtime::StorePath(store_path));
+            app.manage(runtime::EffectSender(sender));
+            app.manage(window::Fullscreen::default());
+            window::create_main_window(&handle)?;
+            runtime::spawn_worker(handle.clone(), receiver, sweep_state);
+            runtime::run(&handle, startup_effects);
+            notifications::spawn_poller(handle);
             Ok(())
         })
         .run(tauri::generate_context!())

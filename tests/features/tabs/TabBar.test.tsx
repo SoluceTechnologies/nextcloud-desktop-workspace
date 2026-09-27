@@ -8,7 +8,7 @@ vi.mock('@/lib/api', () => ({
   api: { activateTab: vi.fn(), closeTab: vi.fn(), tabMenu: vi.fn(), appsMenu: vi.fn(), reorderTabs: vi.fn() },
 }));
 
-const ws: Workspace = {
+const workspace: Workspace = {
   id: 'w',
   baseUrl: 'https://a.com/',
   name: 'A',
@@ -29,33 +29,33 @@ afterEach(() => {
 
 describe('TabBar', () => {
   it('renders tabs with selection and close buttons only for unpinned tabs', () => {
-    render(<TabBar workspace={ws} loading={new Set()} notice={null} />);
-    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+    render(<TabBar workspace={workspace} loadingTabs={new Set()} notice={null} />);
+    expect(screen.getAllByRole('tab').map((tab) => tab.getAttribute('aria-selected'))).toEqual(['false', 'true']);
     expect(screen.queryByRole('button', { name: 'Close Files' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Close Deck' })).toBeTruthy();
   });
 
   it('marks loading tabs busy and shows a progress bar while the selected one loads', () => {
-    const { rerender } = render(<TabBar workspace={ws} loading={new Set(['t1'])} notice={null} />);
-    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-busy'))).toEqual(['true', 'false']);
+    const { rerender } = render(<TabBar workspace={workspace} loadingTabs={new Set(['t1'])} notice={null} />);
+    expect(screen.getAllByRole('tab').map((tab) => tab.getAttribute('aria-busy'))).toEqual(['true', 'false']);
     expect(screen.queryByRole('progressbar')).toBeNull();
-    rerender(<TabBar workspace={ws} loading={new Set(['t2'])} notice={null} />);
+    rerender(<TabBar workspace={workspace} loadingTabs={new Set(['t2'])} notice={null} />);
     expect(screen.getByRole('progressbar')).toBeTruthy();
   });
 
   it('closing does not also activate', () => {
-    render(<TabBar workspace={ws} loading={new Set()} notice={null} />);
+    render(<TabBar workspace={workspace} loadingTabs={new Set()} notice={null} />);
     fireEvent.click(screen.getByRole('button', { name: 'Close Deck' }));
     expect(api.closeTab).toHaveBeenCalledWith('w', 't2');
     expect(api.activateTab).not.toHaveBeenCalled();
   });
 
   it('activates on click, opens tab menu on right click, app picker on +', () => {
-    render(<TabBar workspace={ws} loading={new Set()} notice={null} />);
-    const files = screen.getAllByRole('tab')[0];
-    fireEvent.click(files);
+    render(<TabBar workspace={workspace} loadingTabs={new Set()} notice={null} />);
+    const filesTab = screen.getAllByRole('tab')[0];
+    fireEvent.click(filesTab);
     expect(api.activateTab).toHaveBeenCalledWith('w', 't1');
-    fireEvent.contextMenu(files);
+    fireEvent.contextMenu(filesTab);
     expect(api.tabMenu).toHaveBeenCalledWith('w', 't1');
     fireEvent.click(screen.getByRole('button', { name: 'Open app' }));
     expect(api.appsMenu).toHaveBeenCalledWith('w');

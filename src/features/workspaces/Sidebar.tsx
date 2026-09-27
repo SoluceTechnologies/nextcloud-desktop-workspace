@@ -7,6 +7,8 @@ import type { AppState } from '@/lib/types';
 import { TileFace } from './WorkspaceTile';
 import './Sidebar.css';
 
+const MAX_BADGE_COUNT = 99;
+
 export function Sidebar(props: {
   state: AppState;
   unread?: Record<string, number>;
@@ -15,43 +17,45 @@ export function Sidebar(props: {
   onActivate: () => void;
 }) {
   const { state, unread = {}, adding, onAdd, onActivate } = props;
-  const [dragFrom, setDragFrom] = useState<number | null>(null);
-  const ids = state.workspaces.map((w) => w.id);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const workspaceIds = state.workspaces.map((workspace) => workspace.id);
   return (
     <nav className="sidebar" aria-label="Workspaces">
       <ul>
-        {state.workspaces.map((w, i) => {
-          const active = !adding && w.id === state.activeWorkspaceId;
-          const count = unread[w.id] ?? 0;
-          const label = count > 0 ? `${w.name}, ${count} unread` : w.name;
+        {state.workspaces.map((workspace, index) => {
+          const active = !adding && workspace.id === state.activeWorkspaceId;
+          const unreadCount = unread[workspace.id] ?? 0;
+          const label = unreadCount > 0 ? `${workspace.name}, ${unreadCount} unread` : workspace.name;
           return (
-            <li key={w.id} className={active ? 'active' : undefined}>
+            <li key={workspace.id} className={active ? 'active' : undefined}>
               <button
                 className="ws"
                 title={label}
                 aria-label={label}
                 aria-current={active ? 'page' : undefined}
                 draggable
-                onDragStart={() => setDragFrom(i)}
-                onDragOver={(e) => e.preventDefault()}
+                onDragStart={() => setDraggedIndex(index)}
+                onDragOver={(event) => event.preventDefault()}
                 onDrop={() => {
-                  if (dragFrom !== null && dragFrom !== i) api.reorderWorkspaces(move(ids, dragFrom, i));
-                  setDragFrom(null);
+                  if (draggedIndex !== null && draggedIndex !== index) {
+                    api.reorderWorkspaces(move(workspaceIds, draggedIndex, index));
+                  }
+                  setDraggedIndex(null);
                 }}
                 onClick={() => {
-                  api.activateWorkspace(w.id);
+                  api.activateWorkspace(workspace.id);
                   onActivate();
                 }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  api.workspaceMenu(w.id);
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  api.workspaceMenu(workspace.id);
                 }}
               >
-                <TileFace icon={w.icon} name={w.name} />
+                <TileFace icon={workspace.icon} name={workspace.name} />
               </button>
-              {count > 0 && (
+              {unreadCount > 0 && (
                 <span className="badge" aria-hidden="true">
-                  {count > 99 ? '99+' : count}
+                  {unreadCount > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : unreadCount}
                 </span>
               )}
             </li>

@@ -2,24 +2,24 @@ use super::*;
 
 #[test]
 fn action_ids_round_trip() {
-    let (w, t) = (Uuid::new_v4(), Uuid::new_v4());
-    let all = [
-        Action::WsRename(w),
-        Action::WsReload(w),
-        Action::WsClear(w),
-        Action::WsSignIn(w),
-        Action::WsSignOut(w),
-        Action::WsRemove(w),
-        Action::TabPin(w, t, true),
-        Action::TabPin(w, t, false),
-        Action::TabReload(w, t),
-        Action::TabHome(w, t),
-        Action::TabClose(w, t),
-        Action::OpenApp(w, "spreed".into()),
-        Action::OpenHome(w),
+    let (workspace_id, tab_id) = (Uuid::new_v4(), Uuid::new_v4());
+    let actions = [
+        Action::EditWorkspace(workspace_id),
+        Action::ReloadWorkspace(workspace_id),
+        Action::ClearWorkspace(workspace_id),
+        Action::SignIn(workspace_id),
+        Action::SignOut(workspace_id),
+        Action::RemoveWorkspace(workspace_id),
+        Action::PinTab(workspace_id, tab_id, true),
+        Action::PinTab(workspace_id, tab_id, false),
+        Action::ReloadTab(workspace_id, tab_id),
+        Action::ReloadTabHome(workspace_id, tab_id),
+        Action::CloseTab(workspace_id, tab_id),
+        Action::OpenApp(workspace_id, "spreed".into()),
+        Action::OpenHome(workspace_id),
     ];
-    for a in all {
-        assert_eq!(Action::parse(&a.id()), Some(a.clone()), "{}", a.id());
+    for action in actions {
+        assert_eq!(Action::parse(&action.id()), Some(action.clone()), "{}", action.id());
     }
     assert_eq!(Action::parse("quit"), None);
     assert_eq!(Action::parse("ws-rename|not-a-uuid"), None);

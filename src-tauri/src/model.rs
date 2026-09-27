@@ -69,25 +69,24 @@ pub struct AppEntry {
 }
 
 impl AppState {
-    pub fn ws(&self, id: Uuid) -> Option<&Workspace> {
-        self.workspaces.iter().find(|w| w.id == id)
+    pub fn workspace(&self, workspace_id: Uuid) -> Option<&Workspace> {
+        self.workspaces.iter().find(|workspace| workspace.id == workspace_id)
     }
 
-    pub fn ws_mut(&mut self, id: Uuid) -> Option<&mut Workspace> {
-        self.workspaces.iter_mut().find(|w| w.id == id)
+    pub fn workspace_mut(&mut self, workspace_id: Uuid) -> Option<&mut Workspace> {
+        self.workspaces.iter_mut().find(|workspace| workspace.id == workspace_id)
     }
 
-    pub fn find_tab(&self, tab: Uuid) -> Option<(&Workspace, &Tab)> {
-        self.workspaces.iter().find_map(|w| w.tab(tab).map(|t| (w, t)))
+    pub fn find_tab(&self, tab_id: Uuid) -> Option<(&Workspace, &Tab)> {
+        self.workspaces.iter().find_map(|workspace| workspace.tab(tab_id).map(|tab| (workspace, tab)))
     }
 
-    pub fn ws_of_tab_mut(&mut self, tab: Uuid) -> Option<&mut Workspace> {
-        self.workspaces.iter_mut().find(|w| w.tab(tab).is_some())
+    pub fn workspace_of_tab_mut(&mut self, tab_id: Uuid) -> Option<&mut Workspace> {
+        self.workspaces.iter_mut().find(|workspace| workspace.tab(tab_id).is_some())
     }
 }
 
 impl Workspace {
-    /// New workspace named after its host, with one selected AUTH tab at the base URL (→ login page).
     pub fn new(base_url: Url) -> Self {
         let name = base_url.host_str().unwrap_or_default().to_string();
         let tab = Tab::new(AUTH, "Nextcloud", base_url.clone());
@@ -105,20 +104,27 @@ impl Workspace {
         }
     }
 
-    pub fn tab(&self, id: Uuid) -> Option<&Tab> {
-        self.tabs.iter().find(|t| t.id == id)
+    pub fn tab(&self, tab_id: Uuid) -> Option<&Tab> {
+        self.tabs.iter().find(|tab| tab.id == tab_id)
     }
 
-    pub fn tab_mut(&mut self, id: Uuid) -> Option<&mut Tab> {
-        self.tabs.iter_mut().find(|t| t.id == id)
+    pub fn tab_mut(&mut self, tab_id: Uuid) -> Option<&mut Tab> {
+        self.tabs.iter_mut().find(|tab| tab.id == tab_id)
     }
 
     pub fn tab_by_app(&self, app_id: &str) -> Option<&Tab> {
-        self.tabs.iter().find(|t| t.app_id == app_id)
+        self.tabs.iter().find(|tab| tab.app_id == app_id)
+    }
+
+    pub fn active_tab(&self) -> Option<&Tab> {
+        self.tab(self.active_tab_id?)
     }
 
     pub fn app_name(&self, app_id: &str) -> String {
-        self.apps.iter().find(|a| a.id == app_id).map_or_else(|| app_id.to_string(), |a| a.name.clone())
+        self.apps
+            .iter()
+            .find(|app| app.id == app_id)
+            .map_or_else(|| app_id.to_string(), |app| app.name.clone())
     }
 }
 

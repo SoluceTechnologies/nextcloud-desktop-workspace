@@ -1,131 +1,123 @@
-// Injected into every Nextcloud page (main frame) by webviews.rs. Report-only bridge to the shell:
-// the page can say where it is and what it looks like, and nothing else (spec §6).
 (() => {
   if (window.top !== window || window.__ncwBridge) return;
   window.__ncwBridge = true;
 
-  const invoke = (cmd, args) => {
+  const invoke = (command, args) => {
     try {
-      window.__TAURI_INTERNALS__.invoke(cmd, args).catch(() => {});
-    } catch {
-      // not granted on this origin (identity provider pages, external sites)
-    }
+      window.__TAURI_INTERNALS__.invoke(command, args).catch(() => {});
+    } catch {}
   };
 
-  // Mirror of router.rs app_id(): the app a path belongs to, or null for pages that own no tab.
-  const appKey = (path) => {
-    const segs = path.split('/').filter(Boolean);
-    const i = segs.findIndex((s) => s === 'apps' || s === 'settings' || s === 's');
-    if (i < 0) return null;
-    const kind = segs[i];
-    const next = segs[i + 1];
+  const appOfPath = (path) => {
+    const segments = path.split('/').filter(Boolean);
+    const index = segments.findIndex((segment) => segment === 'apps' || segment === 'settings' || segment === 's');
+    if (index < 0) return null;
+    const kind = segments[index];
+    const next = segments[index + 1];
     if (kind === 'settings') return 'settings';
     if (!next) return null;
     if (kind === 's') return 'share:' + next;
     return /^(user_oidc|user_saml|twofactor_)/.test(next) ? null : next;
   };
 
-  // Links to another origin or another app become window.open → on_new_window → shell routing (spec §5.4).
   addEventListener(
     'click',
-    (e) => {
-      if (e.button !== 0) return;
-      const a = e.target instanceof Element ? e.target.closest('a[href]') : null;
-      if (!a || a.hasAttribute('download') || (a.target && a.target !== '_self')) return;
+    (event) => {
+      if (event.button !== 0) return;
+      const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
+      if (!anchor || anchor.hasAttribute('download') || (anchor.target && anchor.target !== '_self')) return;
       let url;
       try {
-        url = new URL(a.href, location.href);
+        url = new URL(anchor.href, location.href);
       } catch {
         return;
       }
       if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
-      const here = appKey(location.pathname);
-      const there = appKey(url.pathname);
-      if (url.origin !== location.origin || (here && there && here !== there)) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
+      const currentApp = appOfPath(location.pathname);
+      const targetApp = appOfPath(url.pathname);
+      const otherApp = currentApp && targetApp && currentApp !== targetApp;
+      if (url.origin !== location.origin || otherApp) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
         window.open(url.href, '_blank');
       }
     },
     true,
   );
 
-  // Location: page load + SPA changes.
-  let last = '';
-  const report = () => {
-    if (location.href === last) return;
-    last = location.href;
-    invoke('nc_report_location', { url: last });
+  let lastReported = '';
+  const reportLocation = () => {
+    if (location.href === lastReported) return;
+    lastReported = location.href;
+    invoke('nc_report_location', { url: lastReported });
   };
-  let timer;
-  const soon = () => {
-    clearTimeout(timer);
-    timer = setTimeout(report, 250);
+  let reportTimer;
+  const reportLocationSoon = () => {
+    clearTimeout(reportTimer);
+    reportTimer = setTimeout(reportLocation, 250);
   };
-  for (const k of ['pushState', 'replaceState']) {
-    const orig = history[k];
-    history[k] = function (...args) {
-      const r = orig.apply(this, args);
-      soon();
-      return r;
+  for (const method of ['pushState', 'replaceState']) {
+    const original = history[method];
+    history[method] = function (...args) {
+      const result = original.apply(this, args);
+      reportLocationSoon();
+      return result;
     };
   }
-  addEventListener('popstate', soon);
-  addEventListener('hashchange', soon);
+  addEventListener('popstate', reportLocationSoon);
+  addEventListener('hashchange', reportLocationSoon);
 
-  // App menu: hidden initial state first (complete list), DOM links as fallback.
-  const decode = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
-  const apps = () => {
-    const el = document.getElementById('initial-state-core-apps');
-    if (el) {
+  const decodeBase64 = (encoded) =>
+    new TextDecoder().decode(Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0)));
+
+  const appLinks = () => {
+    const initialState = document.getElementById('initial-state-core-apps');
+    if (initialState) {
       try {
-        return Object.values(JSON.parse(decode(el.value)))
-          .filter((x) => x && x.href)
-          .map((x) => ({ name: String(x.name ?? ''), href: new URL(x.href, location.href).href }));
-      } catch {
-        // fall through
-      }
+        return Object.values(JSON.parse(decodeBase64(initialState.value)))
+          .filter((app) => app && app.href)
+          .map((app) => ({ name: String(app.name ?? ''), href: new URL(app.href, location.href).href }));
+      } catch {}
     }
-    return [...document.querySelectorAll('.app-menu-entry a, #appmenu li a')].map((a) => ({
-      name: (a.getAttribute('aria-label') || a.textContent || '').trim(),
-      href: a.href,
+    return [...document.querySelectorAll('.app-menu-entry a, #appmenu li a')].map((link) => ({
+      name: (link.getAttribute('aria-label') || link.textContent || '').trim(),
+      href: link.href,
     }));
   };
 
-  // Workspace icon, as a 128 px PNG data URL (≤ 64 KB on the Rust side): the server's custom favicon,
-  // else its custom logo on the theme colour, else '' (nothing custom: the shell shows initials).
-  // Nextcloud theming defines --image-favicon/logoheader/logo only for images an admin uploaded; the
-  // default favicon is the current app's icon, which says nothing about the server. null = unknown
-  // (theming CSS not applied yet, image failed): the shell keeps what it has. Drawn through a canvas
-  // because servers send these as octet-stream, ICO, SVG or large PNGs; <img> sniffs all of them.
-  const cssImage = (style, name) => {
-    const m = style.getPropertyValue(name).match(/url\(\s*['"]?([^'")]+)/);
-    return m ? new URL(m[1], location.href).href : null;
+  const cssImage = (style, property) => {
+    const match = style.getPropertyValue(property).match(/url\(\s*['"]?([^'")]+)/);
+    return match ? new URL(match[1], location.href).href : null;
   };
-  const icon = async () => {
+
+  const ICON_SIZE = 128;
+  const LOGO_PADDING = 20;
+
+  const workspaceIcon = async () => {
     const style = getComputedStyle(document.body);
-    const primary = style.getPropertyValue('--color-primary').trim();
-    if (!primary) return null;
+    const primaryColor = style.getPropertyValue('--color-primary').trim();
+    if (!primaryColor) return null;
     const favicon = cssImage(style, '--image-favicon');
     const logo = favicon ? null : cssImage(style, '--image-logoheader') || cssImage(style, '--image-logo');
     if (!favicon && !logo) return '';
     try {
-      const img = new Image();
-      img.src = favicon || logo;
-      await img.decode();
-      const size = 128;
-      const pad = favicon ? 0 : 20;
+      const image = new Image();
+      image.src = favicon || logo;
+      await image.decode();
+      const padding = favicon ? 0 : LOGO_PADDING;
       const canvas = document.createElement('canvas');
-      canvas.width = canvas.height = size;
-      const g = canvas.getContext('2d');
+      canvas.width = canvas.height = ICON_SIZE;
+      const context = canvas.getContext('2d');
       if (logo) {
-        g.fillStyle = primary;
-        g.fillRect(0, 0, size, size);
+        context.fillStyle = primaryColor;
+        context.fillRect(0, 0, ICON_SIZE, ICON_SIZE);
       }
-      const iw = img.naturalWidth || size;
-      const ih = img.naturalHeight || size;
-      const scale = Math.min((size - 2 * pad) / iw, (size - 2 * pad) / ih);
-      g.drawImage(img, (size - iw * scale) / 2, (size - ih * scale) / 2, iw * scale, ih * scale);
+      const width = image.naturalWidth || ICON_SIZE;
+      const height = image.naturalHeight || ICON_SIZE;
+      const scale = Math.min((ICON_SIZE - 2 * padding) / width, (ICON_SIZE - 2 * padding) / height);
+      const x = (ICON_SIZE - width * scale) / 2;
+      const y = (ICON_SIZE - height * scale) / 2;
+      context.drawImage(image, x, y, width * scale, height * scale);
       return canvas.toDataURL('image/png');
     } catch {
       return null;
@@ -133,13 +125,13 @@
   };
 
   document.addEventListener('fullscreenchange', () => {
-    invoke('nc_report_fullscreen', { on: !!document.fullscreenElement });
+    invoke('nc_report_fullscreen', { fullscreen: !!document.fullscreenElement });
   });
 
-  const ready = async () => {
-    report();
-    invoke('nc_report_meta', { icon: await icon(), apps: apps().slice(0, 64) });
+  const onReady = async () => {
+    reportLocation();
+    invoke('nc_report_meta', { icon: await workspaceIcon(), apps: appLinks().slice(0, 64) });
   };
-  if (document.readyState === 'loading') addEventListener('DOMContentLoaded', ready, { once: true });
-  else ready();
+  if (document.readyState === 'loading') addEventListener('DOMContentLoaded', onReady, { once: true });
+  else onReady();
 })();

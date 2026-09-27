@@ -8,7 +8,7 @@ vi.mock('@/lib/api', () => ({
   api: { renameWorkspace: vi.fn(() => Promise.resolve()), setWorkspaceIcon: vi.fn(() => Promise.resolve()) },
 }));
 
-const ws = (over: Partial<Workspace>): Workspace => ({
+const workspace = (overrides: Partial<Workspace>): Workspace => ({
   id: 'w',
   baseUrl: 'https://a.com/',
   name: 'Soluce Technologies',
@@ -18,7 +18,7 @@ const ws = (over: Partial<Workspace>): Workspace => ({
   apps: [],
   tabs: [],
   activeTabId: null,
-  ...over,
+  ...overrides,
 });
 afterEach(() => {
   cleanup();
@@ -28,7 +28,7 @@ afterEach(() => {
 describe('Edit workspace', () => {
   it('goes back to the server icon and saves a changed name', async () => {
     const onClose = vi.fn();
-    render(<EditWorkspaceForm ws={ws({})} onDone={onClose} />);
+    render(<EditWorkspaceForm workspace={workspace({})} onDone={onClose} />);
     fireEvent.click(screen.getByRole('button', { name: 'Use server icon' }));
     expect(screen.getByText('ST')).toBeTruthy();
     fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Soluce' } });
@@ -40,7 +40,7 @@ describe('Edit workspace', () => {
 
   it('offers no reset for a server icon and changes nothing when nothing changed', async () => {
     const onClose = vi.fn();
-    render(<EditWorkspaceForm ws={ws({ iconCustom: false })} onDone={onClose} />);
+    render(<EditWorkspaceForm workspace={workspace({ iconCustom: false })} onDone={onClose} />);
     expect(screen.queryByRole('button', { name: 'Use server icon' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
