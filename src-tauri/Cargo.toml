@@ -27,7 +27,7 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "async-
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["NSString", "NSURL", "NSURLRequest"] }
+objc2-foundation = { version = "0.3", features = ["NSGeometry", "NSString", "NSURL", "NSURLRequest"] }
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"

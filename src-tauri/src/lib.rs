@@ -8,6 +8,8 @@ mod keychain;
 mod media;
 mod menus;
 mod model;
+#[cfg(target_os = "macos")]
+mod mouse_tracking;
 mod notifications;
 mod offline;
 mod profiles;
@@ -66,6 +68,8 @@ pub fn run() {
             app.manage(runtime::StorePath(store_path));
             app.manage(runtime::EffectSender(sender));
             app.manage(window::Fullscreen::default());
+            #[cfg(target_os = "macos")]
+            mouse_tracking::deliver_mouse_moves_only_to_topmost_webview();
             window::create_main_window(&handle)?;
             runtime::spawn_worker(handle.clone(), receiver, sweep_state);
             runtime::run(&handle, startup_effects);
