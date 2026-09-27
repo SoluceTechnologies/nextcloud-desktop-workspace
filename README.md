@@ -29,7 +29,7 @@ The buttons download the installer from the [latest release](https://github.com/
 
 ## Staying signed in
 
-A new workspace signs in with Nextcloud's Login Flow v2 (the same “Grant access” page the desktop client uses). The app password it gets is kept in the system keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux) and signs the workspace in again whenever the browser session expires, so the login page only comes back if the password is revoked. Existing workspaces: right-click the workspace → **Stay signed in…**. Signing out from Nextcloud, **Sign out**, **Clear browsing data** or removing the workspace deletes the app password on the server too.
+A new workspace signs in with Nextcloud's Login Flow v2 (the same “Grant access” page the desktop client uses). The app password it gets is kept in the system keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux) and signs the workspace in again whenever the browser session expires, so the login page only comes back if the password is revoked. Existing workspaces: right-click the workspace → **Stay signed in…**. Signing out from Nextcloud, **Sign out**, **Clear browsing data** or removing the workspace deletes the app password on the server too. Signed-in workspaces also get an unread badge and system notifications.
 
 Server administrators can make web sessions last longer in `config/config.php`:
 

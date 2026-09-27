@@ -20,6 +20,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
             commands::take_notice,
@@ -61,6 +62,7 @@ pub fn run() {
             webviews::create_main_window(&handle)?;
             webviews::spawn_worker(handle.clone(), rx, sweep_state);
             webviews::run(&handle, startup);
+            monitor::spawn_poller(handle.clone());
             Ok(())
         })
         .run(tauri::generate_context!())

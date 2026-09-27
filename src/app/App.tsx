@@ -8,6 +8,7 @@ import { useLoadingTabs } from '@/features/tabs/useLoadingTabs';
 import { useOfflineTabs } from '@/features/tabs/useOfflineTabs';
 import { AddServerForm } from '@/features/workspaces/AddServerForm';
 import { Sidebar } from '@/features/workspaces/Sidebar';
+import { useUnread } from '@/features/workspaces/useUnread';
 import { api } from '@/lib/api';
 import { useAppState } from '@/lib/useAppState';
 import { useTauriEvent } from '@/lib/useTauriEvent';
@@ -21,6 +22,7 @@ export default function App() {
   const notice = useNotice();
   const loading = useLoadingTabs();
   const offline = useOfflineTabs();
+  const unread = useUnread();
 
   useEffect(() => {
     api.setOverlay(dialog !== null);
@@ -40,7 +42,7 @@ export default function App() {
 
   return (
     <div className={bare ? 'shell bare' : 'shell'}>
-      <Sidebar state={state} adding={dialog?.kind === 'add'} onAdd={() => setDialog({ kind: 'add' })} onActivate={close} />
+      <Sidebar state={state} unread={unread} adding={dialog?.kind === 'add'} onAdd={() => setDialog({ kind: 'add' })} onActivate={close} />
       {!bare && <TabBar workspace={active} loading={loading} notice={notice && <Notice notice={notice} />} />}
       <main className="content">{content}</main>
     </div>

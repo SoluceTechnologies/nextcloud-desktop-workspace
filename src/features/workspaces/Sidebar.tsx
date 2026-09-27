@@ -7,8 +7,14 @@ import type { AppState } from '@/lib/types';
 import { TileFace } from './WorkspaceTile';
 import './Sidebar.css';
 
-export function Sidebar(props: { state: AppState; adding: boolean; onAdd: () => void; onActivate: () => void }) {
-  const { state, adding, onAdd, onActivate } = props;
+export function Sidebar(props: {
+  state: AppState;
+  unread?: Record<string, number>;
+  adding: boolean;
+  onAdd: () => void;
+  onActivate: () => void;
+}) {
+  const { state, unread = {}, adding, onAdd, onActivate } = props;
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const ids = state.workspaces.map((w) => w.id);
   return (
@@ -16,12 +22,14 @@ export function Sidebar(props: { state: AppState; adding: boolean; onAdd: () => 
       <ul>
         {state.workspaces.map((w, i) => {
           const active = !adding && w.id === state.activeWorkspaceId;
+          const count = unread[w.id] ?? 0;
+          const label = count > 0 ? `${w.name}, ${count} unread` : w.name;
           return (
             <li key={w.id} className={active ? 'active' : undefined}>
               <button
                 className="ws"
-                title={w.name}
-                aria-label={w.name}
+                title={label}
+                aria-label={label}
                 aria-current={active ? 'page' : undefined}
                 draggable
                 onDragStart={() => setDragFrom(i)}
@@ -41,6 +49,11 @@ export function Sidebar(props: { state: AppState; adding: boolean; onAdd: () => 
               >
                 <TileFace icon={w.icon} name={w.name} />
               </button>
+              {count > 0 && (
+                <span className="badge" aria-hidden="true">
+                  {count > 99 ? '99+' : count}
+                </span>
+              )}
             </li>
           );
         })}

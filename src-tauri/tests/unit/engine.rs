@@ -475,6 +475,18 @@ fn offline_tab_is_hidden_until_retried_at_its_url() {
 }
 
 #[test]
+fn reopen_tabs_navigates_only_live_tabs_to_their_url() {
+    let mut e = engine_with(&["https://a.com"], MAX_LIVE);
+    let w = ws(&e, 0);
+    let live = e.state.workspaces[0].tabs[0].id;
+    e.open_app(w, "deck", u("https://a.com/apps/deck/"), false);
+    let deck = tab_of_app(&e, 0, "deck");
+    e.activate_tab(w, live);
+    e.kill(w, deck, &mut Vec::new());
+    assert_eq!(e.reopen_tabs(w), vec![Effect::Navigate { ws: w, tab: live, url: u("https://a.com/") }]);
+}
+
+#[test]
 fn login_flow_reuses_the_sign_in_tab_then_goes_home() {
     let mut e = engine_with(&["https://a.com"], MAX_LIVE);
     let w = ws(&e, 0);

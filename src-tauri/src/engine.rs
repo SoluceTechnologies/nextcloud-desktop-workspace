@@ -265,6 +265,11 @@ impl Engine {
         fx
     }
 
+    pub fn reopen_tabs(&self, ws: Uuid) -> Vec<Effect> {
+        let Some(w) = self.state.ws(ws) else { return Vec::new() };
+        w.tabs.iter().filter(|t| self.is_live(t.id)).map(|t| Effect::Navigate { ws, tab: t.id, url: t.url.clone() }).collect()
+    }
+
     pub fn clear_browsing_data(&mut self, ws: Uuid) -> Vec<Effect> {
         let Some(w) = self.state.ws(ws) else { return Vec::new() };
         let mut fx = vec![Effect::ClearProfile { ws, delete: false }];
