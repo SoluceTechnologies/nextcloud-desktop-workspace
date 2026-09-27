@@ -1,11 +1,7 @@
-//! Persisted data model (spec §4). No behaviour beyond lookups.
-
 use serde::{Deserialize, Serialize};
 use url::Url;
 use uuid::Uuid;
 
-/// app_id of pages that never own a tab: auth flows, the root, and non-app resources
-/// (remote.php, ocs, f/<id>…). A tab starts as AUTH and adopts the first real app it lands on.
 pub const AUTH: &str = "AUTH";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -14,7 +10,6 @@ pub struct AppState {
     pub version: u32,
     pub workspaces: Vec<Workspace>,
     pub active_workspace_id: Option<Uuid>,
-    /// Window appearance chosen in the sidebar; Nextcloud pages follow it too (prefers-color-scheme).
     #[serde(default)]
     pub theme: Appearance,
 }
@@ -44,7 +39,6 @@ pub struct Workspace {
     pub name_custom: bool,
     #[serde(default)]
     pub icon: Option<String>,
-    /// true once the user picks an icon in the app: server reports no longer replace it.
     #[serde(default)]
     pub icon_custom: bool,
     #[serde(default)]
@@ -120,7 +114,6 @@ impl Workspace {
         self.tabs.iter().find(|t| t.app_id == app_id)
     }
 
-    /// Display name of an app from the cached app menu, falling back to its id.
     pub fn app_name(&self, app_id: &str) -> String {
         self.apps.iter().find(|a| a.id == app_id).map_or_else(|| app_id.to_string(), |a| a.name.clone())
     }

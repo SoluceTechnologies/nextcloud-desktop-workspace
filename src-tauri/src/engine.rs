@@ -1,6 +1,3 @@
-//! Every state mutation (spec §5–§7). Pure: ops return `Effect`s for the webview executor
-//! (`webviews.rs`) and never touch Tauri, so the lock is never held during webview calls.
-
 use crate::model::{AppEntry, AppState, Appearance, Tab, Workspace, AUTH};
 use crate::router::{self, Route};
 use crate::urls;
@@ -16,36 +13,28 @@ const MAX_TITLE: usize = 256;
 const MAX_ICON: usize = 65_536;
 const MAX_APPS: usize = 64;
 
-/// App menu link as reported by the bridge (untrusted input).
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct AppLink {
     pub name: String,
     pub href: String,
 }
 
-/// Side effects for the webview executor, applied in order on one worker thread.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Effect {
-    /// Create the tab's webview, hidden, at `url`.
     Create { ws: Uuid, tab: Uuid, url: Url },
     Navigate { ws: Uuid, tab: Uuid, url: Url },
     Reload { ws: Uuid, tab: Uuid },
     Destroy { ws: Uuid, tab: Uuid },
-    /// Show this tab's webview and hide every other content webview.
     Show { ws: Uuid, tab: Uuid },
     HideContent,
     OpenExternal(Url),
-    /// Clear the workspace profile's browsing data; `delete` also removes the profile directory.
     ClearProfile { ws: Uuid, delete: bool },
-    /// Apply the window appearance (light, dark or follow the system).
     Theme(Appearance),
-    /// State changed: emit a snapshot to the shell and save to disk.
     Changed,
 }
 
 pub struct Engine {
     pub state: AppState,
-    /// Tabs with a live webview, least recently shown first.
     live: Vec<Uuid>,
     overlay: bool,
     max_live: usize,
@@ -56,7 +45,6 @@ impl Engine {
         Self { state, live: Vec::new(), overlay: false, max_live }
     }
 
-    /// Icon chosen in the app; `None` goes back to the server's (from the next page report).
     pub fn set_icon(&mut self, ws: Uuid, icon: Option<String>) -> Vec<Effect> {
         let Some(w) = self.state.ws_mut(ws) else { return Vec::new() };
         match icon {
@@ -76,7 +64,6 @@ impl Engine {
         self.live.contains(&tab)
     }
 
-    /// First presentation after launch: only the selected tab of the selected workspace gets a webview.
     pub fn startup(&mut self) -> Vec<Effect> {
         if self.state.active_workspace_id.and_then(|id| self.state.ws(id)).is_none() {
             self.state.active_workspace_id = self.state.workspaces.first().map(|w| w.id);
@@ -113,7 +100,6 @@ impl Engine {
         self.presented(fx)
     }
 
-    /// Empty name = back to automatic naming (host, then page title).
     pub fn rename_workspace(&mut self, ws: Uuid, name: &str) -> Vec<Effect> {
         let Some(w) = self.state.ws_mut(ws) else { return Vec::new() };
         let name = name.trim();
@@ -147,8 +133,6 @@ impl Engine {
         self.presented(Vec::new())
     }
 
-    /// Selects the tab of `app_id` in `ws`, creating it if missing. `AUTH` always opens a new tab.
-    /// `navigate_existing`: routed links move an existing tab to `url`; the app picker does not.
     pub fn open_app(&mut self, ws: Uuid, app_id: &str, url: Url, navigate_existing: bool) -> Vec<Effect> {
         let mut fx = Vec::new();
         let Some(w) = self.state.ws(ws) else { return fx };
@@ -166,9 +150,6 @@ impl Engine {
         self.presented(fx)
     }
 
-    /// A link opened as a new window (`window.open`, `target=_blank`, cross-app click): a tab already at
-    /// that URL is selected; an app home (app menu link) selects the app's tab without reloading it;
-    /// any other link, such as a document, gets a tab of its own, so one app can have several tabs.
     fn open_link(&mut self, ws: Uuid, app_id: &str, url: Url) -> Vec<Effect> {
         let Some(w) = self.state.ws(ws) else { return Vec::new() };
         if let Some(t) = w.tabs.iter().find(|t| t.url == url).map(|t| t.id) {
@@ -213,7 +194,6 @@ impl Engine {
         }
     }
 
-    /// While a shell dialog is open the content webviews are hidden (they would cover it).
     pub fn set_overlay(&mut self, on: bool) -> Vec<Effect> {
         self.overlay = on;
         self.presented(Vec::new())
@@ -237,8 +217,6 @@ impl Engine {
         fx
     }
 
-    /// Main-frame location report (page load or SPA change). Keeps one tab per app (spec §5.4):
-    /// AUTH tabs adopt or merge into the app they land on, other tabs are retagged when free.
     pub fn observe_location(&mut self, tab: Uuid, url: Url) -> Vec<Effect> {
         let Some((w, t)) = self.state.find_tab(tab) else { return Vec::new() };
         if !urls::belongs(&url, &w.base_url) {
@@ -255,8 +233,6 @@ impl Engine {
                 let mut fx = Vec::new();
                 self.navigate_tab(ws, o, url, &mut fx);
                 if was_active_tab {
-                    // Only hand this workspace's own selection to `o`; never change which
-                    // workspace is globally shown from a background page report.
                     if let Some(w) = self.state.ws_mut(ws) {
                         w.active_tab_id = Some(o);
                     }
@@ -273,7 +249,6 @@ impl Engine {
         vec![Effect::Changed]
     }
 
-    /// Native document-title change: tab title = page part; workspace name = instance part unless user-named.
     pub fn observe_title(&mut self, tab: Uuid, title: &str) -> Vec<Effect> {
         let (page, instance) = split_title(title);
         let Some(w) = self.state.ws_of_tab_mut(tab) else { return Vec::new() };
@@ -290,7 +265,6 @@ impl Engine {
         vec![Effect::Changed]
     }
 
-    /// Once-per-page metadata from the bridge. Keeps only data-URL images and in-workspace app links.
     pub fn observe_meta(&mut self, tab: Uuid, icon: Option<String>, apps: Vec<AppLink>) -> Vec<Effect> {
         let Some(w) = self.state.ws_of_tab_mut(tab) else { return Vec::new() };
         // Some("") = the server has no custom favicon or logo (initials); None = unknown, keep.
@@ -342,7 +316,6 @@ impl Engine {
         }
     }
 
-    /// Tab menu "Reload at app home": navigate to the app's landing page, or reload if already there.
     pub fn reload_home(&mut self, ws: Uuid, tab: Uuid) -> Vec<Effect> {
         let Some(home) = self.state.ws(ws).and_then(|w| w.tab(tab).map(|t| router::home_url(&w.base_url, &t.app_id)))
         else {
@@ -376,7 +349,6 @@ impl Engine {
         }
     }
 
-    /// Removes the tab; a selected tab hands the selection to its right neighbour, else its left one.
     fn remove_tab(&mut self, ws: Uuid, tab: Uuid, fx: &mut Vec<Effect>) {
         let Some(w) = self.state.ws_mut(ws) else { return };
         let Some(idx) = w.tabs.iter().position(|t| t.id == tab) else { return };
@@ -394,7 +366,6 @@ impl Engine {
         }
     }
 
-    /// Ends every selection change: selected tab live and shown (or all hidden), LRU enforced, `Changed`.
     fn presented(&mut self, mut fx: Vec<Effect>) -> Vec<Effect> {
         let target = self.state.active_workspace_id.and_then(|ws| {
             let w = self.state.ws(ws)?;
@@ -439,8 +410,6 @@ fn truncate(s: &str, max: usize) -> String {
     s.chars().take(max).collect()
 }
 
-/// "Documents - Files - Soluce Cloud" → ("Documents - Files", Some("Soluce Cloud")).
-/// The default instance name "Nextcloud" says nothing about the workspace, so it yields None.
 fn split_title(title: &str) -> (&str, Option<&str>) {
     let t = title.trim();
     let cut = [" - ", " – "].iter().filter_map(|sep| t.rfind(sep).map(|i| (i, sep.len()))).max();
@@ -453,7 +422,6 @@ fn split_title(title: &str) -> (&str, Option<&str>) {
     }
 }
 
-/// Reorders `items` to follow `ids`; no-op (false) unless `ids` is a permutation of the items' ids.
 fn reorder<T>(items: &mut [T], ids: &[Uuid], key: impl Fn(&T) -> Uuid) -> bool {
     if ids.len() != items.len() || !items.iter().all(|i| ids.contains(&key(i))) {
         return false;

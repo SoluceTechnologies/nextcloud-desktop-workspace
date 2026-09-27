@@ -1,6 +1,3 @@
-//! Webview side of the app: main window layout, the effect worker, content webview creation with
-//! per-workspace profiles, and the per-origin bridge capability.
-
 use crate::engine::{Effect, Engine, Shared};
 use crate::model::{AppState, Appearance};
 use crate::router::{self, Route};
@@ -35,18 +32,12 @@ pub fn engine(app: &AppHandle) -> MutexGuard<'_, Engine> {
     app.state::<Shared>().inner().lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Queues effects for the worker thread. Safe to call from any thread, including webview callbacks.
 pub fn run(app: &AppHandle, fx: Vec<Effect>) {
     if !fx.is_empty() {
         let _ = app.state::<EffectTx>().0.send(fx);
     }
 }
 
-/// Single worker: applies effect batches in order, off the main thread and outside the engine lock.
-/// `sweep_state`, when present, triggers `sweep_profiles` after the startup batch (skipped when `workspaces.json` failed
-/// to load: the caller passes `None` rather than sweep against an empty recovery state, which would
-/// delete every live profile). Run here, not in `setup`, because the macOS data-store calls need the
-/// main thread's event loop pumping, which it isn't yet during `setup`.
 pub fn spawn_worker(app: AppHandle, rx: Receiver<Vec<Effect>>, sweep_state: Option<AppState>) {
     std::thread::spawn(move || {
         let mut sweep_state = sweep_state;
@@ -70,7 +61,6 @@ pub fn tab_of(label: &str) -> Option<Uuid> {
     Uuid::parse_str(tab).ok()
 }
 
-/// Main window: no own webview; the React shell is a full-size child, content webviews go on top of it.
 pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
     let appearance = engine(app).state.theme;
     let builder = WindowBuilder::new(app, "main")
@@ -78,9 +68,6 @@ pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
         .theme(window_theme(appearance))
         .inner_size(1280.0, 800.0)
         .min_inner_size(800.0, 500.0);
-    // Tauri's default macOS style (`Visible`) turns on fullsize_content_view: the content view then runs
-    // under the title bar, so child webview y is measured from the window's top edge and the content
-    // webview covered the tab bar. `Transparent` keeps the content view below the title bar.
     #[cfg(target_os = "macos")]
     let builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
     let window = builder.build()?;
@@ -110,7 +97,6 @@ fn window_theme(appearance: Appearance) -> Option<Theme> {
     }
 }
 
-/// The window's appearance drives prefers-color-scheme in every webview: the shell and Nextcloud pages.
 fn apply_theme(app: &AppHandle, appearance: Appearance) -> Res {
     let window = main_window(app)?;
     window.set_theme(window_theme(appearance))?;
@@ -118,8 +104,6 @@ fn apply_theme(app: &AppHandle, appearance: Appearance) -> Res {
     Ok(())
 }
 
-/// Window background = the shell's `--chrome` colour (src/App.css), so the transparent macOS title bar
-/// blends into the sidebar and tab bar in both themes.
 fn paint_chrome(window: &Window, theme: Theme) {
     let color = match theme {
         Theme::Dark => Color(30, 31, 34, 255),
@@ -140,7 +124,6 @@ fn content_rect(window: &Window) -> tauri::Result<(LogicalPosition<f64>, Logical
     ))
 }
 
-/// Label of the content webview currently in HTML fullscreen (covers the whole window).
 #[derive(Default)]
 pub struct Fullscreen(pub Mutex<Option<String>>);
 
@@ -159,8 +142,6 @@ fn rect_for(window: &Window, label: &str) -> tauri::Result<(LogicalPosition<f64>
     content_rect(window)
 }
 
-/// Keeps every content webview (label `ws-…`) in its rectangle: the content area, or the whole
-/// window for the one in HTML fullscreen.
 pub fn relayout(window: &Window) {
     for wv in window.webviews() {
         if wv.label().starts_with("ws-") {
@@ -205,7 +186,6 @@ fn apply_batch(app: &AppHandle, batch: Vec<Effect>, granted: &mut HashSet<Uuid>)
     }
 }
 
-/// Emits the snapshot to the shell and saves it. The lock is released before emitting.
 fn publish(app: &AppHandle) {
     let state = engine(app).state.clone();
     let _ = app.emit_to("shell", "state-changed", &state);
@@ -221,7 +201,6 @@ fn with_webview(app: &AppHandle, ws: Uuid, tab: Uuid, f: impl FnOnce(Webview) ->
     }
 }
 
-/// Shows `target` and hides every other content webview; `None` hides them all.
 fn show_only(app: &AppHandle, target: Option<&str>) -> Res {
     let window = main_window(app)?;
     let content: Vec<Webview> = window.webviews().into_iter().filter(|w| w.label().starts_with("ws-")).collect();
@@ -292,16 +271,10 @@ struct TabLoading {
     loading: bool,
 }
 
-/// Page loading indicator for the shell's tab bar (runtime only, not in the persisted state).
 fn loading(app: &AppHandle, tab: Uuid, loading: bool) {
     let _ = app.emit_to("shell", "tab-loading", TabLoading { tab, loading });
 }
 
-/// Builds and validates the `remote` URLPattern for this workspace's bridge capability. Host chars
-/// that are URLPattern syntax (`:` in IPv6 literals; `*`, `+`, `(`… which WHATWG allows in domains)
-/// are escaped so they match literally. Tauri's ACL resolver (`Resolved::resolve`, called from
-/// `Manager::add_capability`) panics on an unparsable pattern, poisoning the ACL mutex and crashing
-/// the app, so the pattern is also parsed here with the same parser to turn any leftover case into `Err`.
 pub fn bridge_pattern(url: &Url) -> Result<String, String> {
     let mut host = String::new();
     for c in url.host_str().unwrap_or_default().chars() {
@@ -316,7 +289,6 @@ pub fn bridge_pattern(url: &Url) -> Result<String, String> {
     Ok(pattern)
 }
 
-/// Pages of this workspace's origin, in this workspace's webviews only, may call the report-only bridge.
 fn grant_bridge(app: &AppHandle, ws: Uuid, url: &Url) -> Res {
     let pattern = bridge_pattern(url)?;
     app.add_capability(
@@ -331,7 +303,6 @@ fn grant_bridge(app: &AppHandle, ws: Uuid, url: &Url) -> Res {
     Ok(())
 }
 
-/// `on_navigation` runs for iframes too (macOS), so it only filters schemes (spec §5.4).
 fn navigation(app: &AppHandle, url: &Url) -> bool {
     match router::classify_navigation(url) {
         Route::InPlace => true,
@@ -357,8 +328,6 @@ fn with_profile(app: &AppHandle, builder: WebviewBuilder<Wry>, ws: Uuid) -> Resu
     }
 }
 
-/// Nextcloud rejects WKWebView's default user agent (no Safari version) as an unsupported browser.
-/// WKWebView is the system WebKit, the same engine as the installed Safari, so send Safari's user agent.
 #[cfg(target_os = "macos")]
 fn safari_user_agent() -> Option<&'static str> {
     static UA: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
@@ -389,9 +358,6 @@ fn profile_dir(app: &AppHandle, ws: Uuid) -> tauri::Result<PathBuf> {
     Ok(profiles_root(app)?.join(ws.simple().to_string()))
 }
 
-/// Deletes profile directories of workspaces that no longer exist (a delete can fail while
-/// WebView2 still holds the files; this retries at next launch). On macOS, sweeps orphaned
-/// WKWebsiteDataStores instead (spec §7.1).
 pub fn sweep_profiles(app: &AppHandle, state: &AppState) {
     #[cfg(target_os = "macos")]
     {
@@ -410,9 +376,6 @@ pub fn sweep_profiles(app: &AppHandle, state: &AppState) {
     }
 }
 
-/// Removes every WKWebsiteDataStore whose identifier isn't a current workspace id: orphaned by a
-/// `remove_workspace` whose `remove_data_store` call didn't make it to disk (e.g. a crash), or by
-/// workspaces removed from `workspaces.json` by hand.
 #[cfg(target_os = "macos")]
 fn sweep_data_stores(app: &AppHandle, state: &AppState) {
     let keep: HashSet<Uuid> = state.workspaces.iter().map(|w| w.id).collect();
@@ -432,9 +395,6 @@ fn sweep_data_stores(app: &AppHandle, state: &AppState) {
     }
 }
 
-/// Clears the workspace profile using one of its webviews (a temporary hidden one if none is live).
-/// On macOS, a full delete (workspace removal) skips the webview entirely: removing the
-/// WKWebsiteDataStore by identifier is the actual removal spec §7.1 asks for, and doesn't need one.
 fn clear_profile(app: &AppHandle, ws: Uuid, delete: bool) -> Res {
     #[cfg(target_os = "macos")]
     if delete {

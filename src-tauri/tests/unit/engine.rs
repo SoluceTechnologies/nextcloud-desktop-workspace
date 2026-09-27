@@ -349,7 +349,6 @@ fn new_window_links_give_documents_their_own_tabs_and_reuse_app_homes() {
     let fx = e.on_new_window(&doc1);
     assert_eq!(shown(&fx), Some(t1), "the same document selects its tab");
     assert!(created(&fx).is_empty());
-    // An app home (app menu link) selects the app's tab and keeps its page.
     e.on_new_window(&u("https://a.com/apps/files/?dir=/Photos"));
     let files = selected(&e);
     e.activate_tab(ws(&e, 0), t1);

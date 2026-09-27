@@ -55,7 +55,6 @@ impl Action {
     }
 }
 
-/// Asks the shell to open a dialog (see `Dialog` in src/components/Dialogs.tsx).
 #[derive(Clone, Serialize)]
 struct UiRequest {
     kind: &'static str,
@@ -91,7 +90,6 @@ pub fn popup_tab(app: &AppHandle, ws: Uuid, tab: Uuid) -> tauri::Result<()> {
     popup(app, &[&pin, &reload, &home, &sep, &close])
 }
 
-/// Tab bar "+": the workspace's cached Nextcloud app menu, open apps checked.
 pub fn popup_apps(app: &AppHandle, ws: Uuid) -> tauri::Result<()> {
     let (apps, open): (Vec<(String, String)>, Vec<String>) = {
         let e = engine(app);
