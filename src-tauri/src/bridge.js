@@ -2,6 +2,15 @@
   if (window.top !== window || window.__ncwBridge) return;
   window.__ncwBridge = true;
 
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.register = () =>
+      Promise.reject(new DOMException('Service workers are disabled in NC Workspaces', 'SecurityError'));
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((registrations) => registrations.forEach((registration) => registration.unregister()))
+      .catch(() => {});
+  }
+
   const invoke = (command, args) => {
     try {
       window.__TAURI_INTERNALS__.invoke(command, args).catch(() => {});
