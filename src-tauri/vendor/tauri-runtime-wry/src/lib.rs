@@ -5036,7 +5036,9 @@ You may have it installed on another user account, but it is not available for t
       webview_builder.with_document_title_changed_handler(document_title_changed_handler)
   }
 
-  #[allow(unused_mut, unused_variables, unused_assignments)]
+  // Only the GTK child-webview path reads it (see place_in_layout).
+  #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios", target_os = "android")))]
+  #[allow(unused_assignments)]
   let mut initial_bounds: Option<wry::Rect> = None;
   let webview_bounds = if let Some(bounds) = webview_attributes.bounds {
     let bounds: RectWrapper = bounds.into();
@@ -5047,7 +5049,10 @@ You may have it installed on another user account, but it is not available for t
     let size = bounds.size.to_logical::<f32>(scale_factor);
 
     webview_builder = webview_builder.with_bounds(bounds);
-    initial_bounds = Some(bounds);
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios", target_os = "android")))]
+    {
+      initial_bounds = Some(bounds);
+    }
 
     let window_size = content_size(window).to_logical::<f32>(scale_factor);
 
@@ -5069,7 +5074,10 @@ You may have it installed on another user account, but it is not available for t
         size: content_size(window).into(),
       };
       webview_builder = webview_builder.with_bounds(bounds);
-      initial_bounds = Some(bounds);
+      #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios", target_os = "android")))]
+      {
+        initial_bounds = Some(bounds);
+      }
       Some(WebviewBounds {
         x_rate: 0.,
         y_rate: 0.,

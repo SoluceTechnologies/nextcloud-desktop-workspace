@@ -149,3 +149,7 @@ features = [
     "Win32_Foundation",
     "Win32_Graphics_Dwm",
 ]
+
+# Vendored copy: silence upstream lints that crates.io builds hide via --cap-lints.
+[lints.rust]
+unused_unsafe = "allow"
