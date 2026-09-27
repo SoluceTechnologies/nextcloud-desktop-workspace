@@ -1,7 +1,7 @@
 :root {
-  --sidebar-w: 68px; /* = SIDEBAR_W in src-tauri/src/webviews.rs */
-  --tabbar-h: 40px; /* = TABBAR_H in src-tauri/src/webviews.rs */
-  --chrome: #e9eaed; /* = paint_chrome in src-tauri/src/webviews.rs (the macOS title bar shows it) */
+  --sidebar-w: 68px;
+  --tabbar-h: 40px;
+  --chrome: #e9eaed;
   --bg: #f5f6f8;
   --panel: #ffffff;
   --text: #1c1f24;
@@ -11,7 +11,7 @@
   --border-strong: rgba(16, 24, 40, 0.18);
   --hover: rgba(16, 24, 40, 0.06);
   --tab-active: #ffffff;
-  --accent: #0082c9; /* Nextcloud blue: the only blue of the app, both themes */
+  --accent: #0082c9;
   --accent-hover: color-mix(in srgb, var(--accent) 86%, #000);
   --focus: 0 0 0 3px rgba(0, 130, 201, 0.3);
   --danger: #cf3040;
