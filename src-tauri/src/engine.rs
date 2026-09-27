@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use url::Url;
 use uuid::Uuid;
 
-pub const MAX_LIVE: usize = 8;
+pub const MAX_LIVE: usize = 16;
 
 pub type Shared = std::sync::Mutex<Engine>;
 

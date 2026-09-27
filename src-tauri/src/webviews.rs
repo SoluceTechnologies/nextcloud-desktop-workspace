@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Mutex, MutexGuard};
 use tauri::ipc::CapabilityBuilder;
+use tauri::utils::config::BackgroundThrottlingPolicy;
 use tauri::webview::{NewWindowResponse, PageLoadEvent, WebviewBuilder};
 use tauri::window::{Color, WindowBuilder};
 use tauri::{
@@ -257,6 +258,7 @@ fn create(app: &AppHandle, ws: Uuid, tab: Uuid, url: Url, granted: &mut HashSet<
     }
     let (nav, popup, title, dl, load) = (app.clone(), app.clone(), app.clone(), app.clone(), app.clone());
     let builder = WebviewBuilder::new(&label, WebviewUrl::External(url))
+        .background_throttling(BackgroundThrottlingPolicy::Throttle)
         .initialization_script(BRIDGE_JS)
         .on_navigation(move |u| navigation(&nav, u))
         .on_new_window(move |u, _features| {
