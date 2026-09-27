@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from 'react';
 
-export const onEscape = (close: () => void) => (e: KeyboardEvent) => {
-  if (e.key === 'Escape') close();
+export const onEscape = (close: () => void) => (event: KeyboardEvent) => {
+  if (event.key === 'Escape') close();
 };

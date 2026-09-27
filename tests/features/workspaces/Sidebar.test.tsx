@@ -57,4 +57,10 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add Nextcloud' }));
     expect(onAdd).toHaveBeenCalled();
   });
+
+  it('badges workspaces with unread notifications', () => {
+    render(<Sidebar state={state} unread={{ a: 3, b: 0 }} adding={false} onAdd={() => {}} onActivate={() => {}} />);
+    expect(screen.getByRole('button', { name: 'cloud.soluce.com, 3 unread' }).parentElement?.textContent).toContain('3');
+    expect(screen.getByRole('button', { name: 'OCCOS' })).toBeTruthy();
+  });
 });

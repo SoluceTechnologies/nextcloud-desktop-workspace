@@ -1,6 +1,3 @@
-//! Every state mutation (spec §5–§7). Pure: ops return `Effect`s for the webview executor
-//! (`webviews.rs`) and never touch Tauri, so the lock is never held during webview calls.
-
 use crate::model::{AppEntry, AppState, Appearance, Tab, Workspace, AUTH};
 use crate::router::{self, Route};
 use crate::urls;
@@ -8,63 +5,62 @@ use std::collections::HashSet;
 use url::Url;
 use uuid::Uuid;
 
-pub const MAX_LIVE: usize = 8;
+pub const MAX_LIVE: usize = 16;
 
 pub type Shared = std::sync::Mutex<Engine>;
 
+const MAX_NAME: usize = 64;
 const MAX_TITLE: usize = 256;
 const MAX_ICON: usize = 65_536;
 const MAX_APPS: usize = 64;
 
-/// App menu link as reported by the bridge (untrusted input).
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct AppLink {
     pub name: String,
     pub href: String,
 }
 
-/// Side effects for the webview executor, applied in order on one worker thread.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Effect {
-    /// Create the tab's webview, hidden, at `url`.
-    Create { ws: Uuid, tab: Uuid, url: Url },
-    Navigate { ws: Uuid, tab: Uuid, url: Url },
-    Reload { ws: Uuid, tab: Uuid },
-    Destroy { ws: Uuid, tab: Uuid },
-    /// Show this tab's webview and hide every other content webview.
-    Show { ws: Uuid, tab: Uuid },
+    Create { workspace_id: Uuid, tab_id: Uuid, url: Url },
+    Navigate { workspace_id: Uuid, tab_id: Uuid, url: Url },
+    Reload { workspace_id: Uuid, tab_id: Uuid },
+    Destroy { workspace_id: Uuid, tab_id: Uuid },
+    Show { workspace_id: Uuid, tab_id: Uuid },
     HideContent,
     OpenExternal(Url),
-    /// Clear the workspace profile's browsing data; `delete` also removes the profile directory.
-    ClearProfile { ws: Uuid, delete: bool },
-    /// Apply the window appearance (light, dark or follow the system).
+    ClearProfile { workspace_id: Uuid, delete: bool },
     Theme(Appearance),
-    /// State changed: emit a snapshot to the shell and save to disk.
     Changed,
 }
 
 pub struct Engine {
     pub state: AppState,
-    /// Tabs with a live webview, least recently shown first.
     live: Vec<Uuid>,
+    offline: HashSet<Uuid>,
     overlay: bool,
     max_live: usize,
 }
 
 impl Engine {
     pub fn new(state: AppState, max_live: usize) -> Self {
-        Self { state, live: Vec::new(), overlay: false, max_live }
+        Self { state, live: Vec::new(), offline: HashSet::new(), overlay: false, max_live }
     }
 
-    /// Icon chosen in the app; `None` goes back to the server's (from the next page report).
-    pub fn set_icon(&mut self, ws: Uuid, icon: Option<String>) -> Vec<Effect> {
-        let Some(w) = self.state.ws_mut(ws) else { return Vec::new() };
-        match icon {
-            Some(i) if !valid_icon(&i) => return Vec::new(),
-            Some(i) => (w.icon, w.icon_custom) = (Some(i), true),
-            None => (w.icon, w.icon_custom) = (None, false),
+    pub fn is_live(&self, tab_id: Uuid) -> bool {
+        self.live.contains(&tab_id)
+    }
+
+    pub fn is_offline(&self, tab_id: Uuid) -> bool {
+        self.offline.contains(&tab_id)
+    }
+
+    pub fn startup(&mut self) -> Vec<Effect> {
+        let active_exists = self.state.active_workspace_id.and_then(|id| self.state.workspace(id)).is_some();
+        if !active_exists {
+            self.state.active_workspace_id = self.state.workspaces.first().map(|workspace| workspace.id);
         }
-        vec![Effect::Changed]
+        self.present(Vec::new())
     }
 
     pub fn set_theme(&mut self, theme: Appearance) -> Vec<Effect> {
@@ -72,856 +68,480 @@ impl Engine {
         vec![Effect::Theme(theme), Effect::Changed]
     }
 
-    pub fn is_live(&self, tab: Uuid) -> bool {
-        self.live.contains(&tab)
-    }
-
-    /// First presentation after launch: only the selected tab of the selected workspace gets a webview.
-    pub fn startup(&mut self) -> Vec<Effect> {
-        if self.state.active_workspace_id.and_then(|id| self.state.ws(id)).is_none() {
-            self.state.active_workspace_id = self.state.workspaces.first().map(|w| w.id);
-        }
-        self.presented(Vec::new())
+    pub fn set_overlay(&mut self, on: bool) -> Vec<Effect> {
+        self.overlay = on;
+        self.present(Vec::new())
     }
 
     pub fn add_workspace(&mut self, input: &str) -> Result<Vec<Effect>, String> {
         let base = urls::normalize(input)?;
-        let id = match self.state.workspaces.iter().find(|w| w.base_url == base) {
-            Some(w) => w.id,
+        let existing = self.state.workspaces.iter().find(|workspace| workspace.base_url == base);
+        let workspace_id = match existing {
+            Some(workspace) => workspace.id,
             None => {
-                let w = Workspace::new(base);
-                let id = w.id;
-                self.state.workspaces.push(w);
-                id
+                let workspace = Workspace::new(base);
+                let workspace_id = workspace.id;
+                self.state.workspaces.push(workspace);
+                workspace_id
             }
         };
-        Ok(self.activate_workspace(id))
+        Ok(self.activate_workspace(workspace_id))
     }
 
-    pub fn remove_workspace(&mut self, ws: Uuid) -> Vec<Effect> {
-        let Some(idx) = self.state.workspaces.iter().position(|w| w.id == ws) else { return Vec::new() };
-        let removed = self.state.workspaces.remove(idx);
-        let mut fx = Vec::new();
-        for t in &removed.tabs {
-            self.kill(ws, t.id, &mut fx);
+    pub fn remove_workspace(&mut self, workspace_id: Uuid) -> Vec<Effect> {
+        let Some(index) = self.state.workspaces.iter().position(|workspace| workspace.id == workspace_id) else {
+            return Vec::new();
+        };
+        let removed = self.state.workspaces.remove(index);
+        let mut effects = Vec::new();
+        for tab in &removed.tabs {
+            self.destroy_webview(workspace_id, tab.id, &mut effects);
         }
-        fx.push(Effect::ClearProfile { ws, delete: true });
-        if self.state.active_workspace_id == Some(ws) {
-            let n = self.state.workspaces.len();
-            self.state.active_workspace_id = (n > 0).then(|| self.state.workspaces[idx.min(n - 1)].id);
+        effects.push(Effect::ClearProfile { workspace_id, delete: true });
+        if self.state.active_workspace_id == Some(workspace_id) {
+            let remaining = self.state.workspaces.len();
+            self.state.active_workspace_id =
+                (remaining > 0).then(|| self.state.workspaces[index.min(remaining - 1)].id);
         }
-        self.presented(fx)
+        self.present(effects)
     }
 
-    /// Empty name = back to automatic naming (host, then page title).
-    pub fn rename_workspace(&mut self, ws: Uuid, name: &str) -> Vec<Effect> {
-        let Some(w) = self.state.ws_mut(ws) else { return Vec::new() };
+    pub fn rename_workspace(&mut self, workspace_id: Uuid, name: &str) -> Vec<Effect> {
+        let Some(workspace) = self.state.workspace_mut(workspace_id) else { return Vec::new() };
         let name = name.trim();
         if name.is_empty() {
-            w.name = w.base_url.host_str().unwrap_or_default().to_string();
-            w.name_custom = false;
+            workspace.name = workspace.base_url.host_str().unwrap_or_default().to_string();
+            workspace.name_custom = false;
         } else {
-            w.name = truncate(name, 64);
-            w.name_custom = true;
+            workspace.name = truncate(name, MAX_NAME);
+            workspace.name_custom = true;
         }
         vec![Effect::Changed]
     }
 
-    pub fn reorder_workspaces(&mut self, ids: &[Uuid]) -> Vec<Effect> {
-        if reorder(&mut self.state.workspaces, ids, |w| w.id) { vec![Effect::Changed] } else { Vec::new() }
-    }
-
-    pub fn activate_workspace(&mut self, ws: Uuid) -> Vec<Effect> {
-        if self.state.ws(ws).is_none() {
-            return Vec::new();
+    pub fn set_icon(&mut self, workspace_id: Uuid, icon: Option<String>) -> Vec<Effect> {
+        let Some(workspace) = self.state.workspace_mut(workspace_id) else { return Vec::new() };
+        match icon {
+            Some(icon) if !valid_icon(&icon) => return Vec::new(),
+            Some(icon) => (workspace.icon, workspace.icon_custom) = (Some(icon), true),
+            None => (workspace.icon, workspace.icon_custom) = (None, false),
         }
-        self.state.active_workspace_id = Some(ws);
-        self.presented(Vec::new())
+        vec![Effect::Changed]
     }
 
-    pub fn activate_tab(&mut self, ws: Uuid, tab: Uuid) -> Vec<Effect> {
-        if self.state.ws(ws).and_then(|w| w.tab(tab)).is_none() {
-            return Vec::new();
-        }
-        self.select(ws, tab);
-        self.presented(Vec::new())
-    }
-
-    /// Selects the tab of `app_id` in `ws`, creating it if missing. `AUTH` always opens a new tab.
-    /// `navigate_existing`: routed links move an existing tab to `url`; the app picker does not.
-    pub fn open_app(&mut self, ws: Uuid, app_id: &str, url: Url, navigate_existing: bool) -> Vec<Effect> {
-        let mut fx = Vec::new();
-        let Some(w) = self.state.ws(ws) else { return fx };
-        let existing = if app_id == AUTH { None } else { w.tab_by_app(app_id).map(|t| t.id) };
-        let tab = match existing {
-            Some(t) => {
-                if navigate_existing {
-                    self.navigate_tab(ws, t, url, &mut fx);
-                }
-                t
+    pub fn set_login(&mut self, workspace_id: Uuid, login: Option<String>) -> Vec<Effect> {
+        match self.state.workspace_mut(workspace_id) {
+            Some(workspace) if workspace.login != login => {
+                workspace.login = login;
+                vec![Effect::Changed]
             }
-            None => self.push_tab(ws, app_id, url),
-        };
-        self.select(ws, tab);
-        self.presented(fx)
-    }
-
-    /// A link opened as a new window (`window.open`, `target=_blank`, cross-app click): a tab already at
-    /// that URL is selected; an app home (app menu link) selects the app's tab without reloading it;
-    /// any other link, such as a document, gets a tab of its own, so one app can have several tabs.
-    fn open_link(&mut self, ws: Uuid, app_id: &str, url: Url) -> Vec<Effect> {
-        let Some(w) = self.state.ws(ws) else { return Vec::new() };
-        if let Some(t) = w.tabs.iter().find(|t| t.url == url).map(|t| t.id) {
-            self.select(ws, t);
-            return self.presented(Vec::new());
+            _ => Vec::new(),
         }
-        let home = url == router::home_url(&w.base_url, app_id) || w.apps.iter().any(|a| a.href == url);
-        if home {
-            return self.open_app(ws, app_id, url, false);
+    }
+
+    pub fn reorder_workspaces(&mut self, ids: &[Uuid]) -> Vec<Effect> {
+        let reordered = reorder(&mut self.state.workspaces, ids, |workspace| workspace.id);
+        if reordered { vec![Effect::Changed] } else { Vec::new() }
+    }
+
+    pub fn activate_workspace(&mut self, workspace_id: Uuid) -> Vec<Effect> {
+        if self.state.workspace(workspace_id).is_none() {
+            return Vec::new();
         }
-        let tab = self.push_tab(ws, app_id, url);
-        self.select(ws, tab);
-        self.presented(Vec::new())
+        self.state.active_workspace_id = Some(workspace_id);
+        self.present(Vec::new())
     }
 
-    fn push_tab(&mut self, ws: Uuid, app_id: &str, url: Url) -> Uuid {
-        let w = self.state.ws_mut(ws).expect("caller checked the workspace");
-        let t = Tab::new(app_id, &w.app_name(app_id), url);
-        let id = t.id;
-        w.tabs.push(t);
-        id
+    pub fn reload_workspace(&mut self, workspace_id: Uuid) -> Vec<Effect> {
+        match self.state.workspace(workspace_id).and_then(|workspace| workspace.active_tab_id) {
+            Some(tab_id) => self.reload_tab(workspace_id, tab_id),
+            None => Vec::new(),
+        }
     }
 
-    pub fn close_tab(&mut self, ws: Uuid, tab: Uuid) -> Vec<Effect> {
-        let mut fx = Vec::new();
-        self.remove_tab(ws, tab, &mut fx);
-        self.presented(fx)
+    pub fn clear_browsing_data(&mut self, workspace_id: Uuid) -> Vec<Effect> {
+        let mut effects = vec![Effect::ClearProfile { workspace_id, delete: false }];
+        effects.extend(
+            self.live_tabs(workspace_id).into_iter().map(|(tab_id, _)| Effect::Reload { workspace_id, tab_id }),
+        );
+        effects
     }
 
-    pub fn reorder_tabs(&mut self, ws: Uuid, ids: &[Uuid]) -> Vec<Effect> {
-        let ok = self.state.ws_mut(ws).is_some_and(|w| reorder(&mut w.tabs, ids, |t| t.id));
-        if ok { vec![Effect::Changed] } else { Vec::new() }
+    pub fn reopen_tabs(&self, workspace_id: Uuid) -> Vec<Effect> {
+        self.live_tabs(workspace_id)
+            .into_iter()
+            .map(|(tab_id, url)| Effect::Navigate { workspace_id, tab_id, url })
+            .collect()
     }
 
-    pub fn set_pinned(&mut self, ws: Uuid, tab: Uuid, pinned: bool) -> Vec<Effect> {
-        match self.state.ws_mut(ws).and_then(|w| w.tab_mut(tab)) {
-            Some(t) => {
-                t.pinned = pinned;
+    pub fn activate_tab(&mut self, workspace_id: Uuid, tab_id: Uuid) -> Vec<Effect> {
+        if self.state.workspace(workspace_id).and_then(|workspace| workspace.tab(tab_id)).is_none() {
+            return Vec::new();
+        }
+        self.select(workspace_id, tab_id);
+        self.present(Vec::new())
+    }
+
+    pub fn close_tab(&mut self, workspace_id: Uuid, tab_id: Uuid) -> Vec<Effect> {
+        let mut effects = Vec::new();
+        self.remove_tab(workspace_id, tab_id, &mut effects);
+        self.present(effects)
+    }
+
+    pub fn reorder_tabs(&mut self, workspace_id: Uuid, ids: &[Uuid]) -> Vec<Effect> {
+        let reordered = self
+            .state
+            .workspace_mut(workspace_id)
+            .is_some_and(|workspace| reorder(&mut workspace.tabs, ids, |tab| tab.id));
+        if reordered { vec![Effect::Changed] } else { Vec::new() }
+    }
+
+    pub fn set_pinned(&mut self, workspace_id: Uuid, tab_id: Uuid, pinned: bool) -> Vec<Effect> {
+        match self.state.workspace_mut(workspace_id).and_then(|workspace| workspace.tab_mut(tab_id)) {
+            Some(tab) => {
+                tab.pinned = pinned;
                 vec![Effect::Changed]
             }
             None => Vec::new(),
         }
     }
 
-    /// While a shell dialog is open the content webviews are hidden (they would cover it).
-    pub fn set_overlay(&mut self, on: bool) -> Vec<Effect> {
-        self.overlay = on;
-        self.presented(Vec::new())
+    pub fn reload_tab(&mut self, workspace_id: Uuid, tab_id: Uuid) -> Vec<Effect> {
+        if self.is_live(tab_id) { vec![Effect::Reload { workspace_id, tab_id }] } else { Vec::new() }
     }
 
-    pub fn reload_tab(&mut self, ws: Uuid, tab: Uuid) -> Vec<Effect> {
-        if self.is_live(tab) { vec![Effect::Reload { ws, tab }] } else { Vec::new() }
+    pub fn reload_home(&mut self, workspace_id: Uuid, tab_id: Uuid) -> Vec<Effect> {
+        let home = self.state.workspace(workspace_id).and_then(|workspace| {
+            let tab = workspace.tab(tab_id)?;
+            Some(router::home_url(&workspace.base_url, &tab.app_id))
+        });
+        let Some(home) = home else { return Vec::new() };
+        let mut effects = Vec::new();
+        self.navigate_tab(workspace_id, tab_id, home, &mut effects);
+        if effects.is_empty() {
+            effects = self.reload_tab(workspace_id, tab_id);
+        }
+        effects.push(Effect::Changed);
+        effects
     }
 
-    pub fn reload_workspace(&mut self, ws: Uuid) -> Vec<Effect> {
-        match self.state.ws(ws).and_then(|w| w.active_tab_id) {
-            Some(tab) => self.reload_tab(ws, tab),
+    pub fn set_offline(&mut self, tab_id: Uuid) -> Vec<Effect> {
+        if self.state.find_tab(tab_id).is_none() || !self.offline.insert(tab_id) {
+            return Vec::new();
+        }
+        self.present(Vec::new())
+    }
+
+    pub fn retry_tab(&mut self, tab_id: Uuid) -> Vec<Effect> {
+        if !self.offline.remove(&tab_id) {
+            return Vec::new();
+        }
+        let Some((workspace, tab)) = self.state.find_tab(tab_id) else { return Vec::new() };
+        let navigate = Effect::Navigate { workspace_id: workspace.id, tab_id, url: tab.url.clone() };
+        let effects = if self.is_live(tab_id) { vec![navigate] } else { Vec::new() };
+        self.present(effects)
+    }
+
+    pub fn open_app(&mut self, workspace_id: Uuid, app_id: &str, url: Url, navigate_existing: bool) -> Vec<Effect> {
+        let mut effects = Vec::new();
+        let Some(workspace) = self.state.workspace(workspace_id) else { return effects };
+        let existing = if app_id == AUTH { None } else { workspace.tab_by_app(app_id).map(|tab| tab.id) };
+        let tab_id = match existing {
+            Some(tab_id) => {
+                if navigate_existing {
+                    self.navigate_tab(workspace_id, tab_id, url, &mut effects);
+                }
+                tab_id
+            }
+            None => self.push_tab(workspace_id, app_id, url),
+        };
+        self.select(workspace_id, tab_id);
+        self.present(effects)
+    }
+
+    pub fn open_app_from_menu(&mut self, workspace_id: Uuid, app_id: &str) -> Vec<Effect> {
+        let href = self
+            .state
+            .workspace(workspace_id)
+            .and_then(|workspace| workspace.apps.iter().find(|app| app.id == app_id))
+            .map(|app| app.href.clone());
+        match href {
+            Some(href) => self.open_app(workspace_id, app_id, href, false),
             None => Vec::new(),
         }
     }
 
-    pub fn clear_browsing_data(&mut self, ws: Uuid) -> Vec<Effect> {
-        let Some(w) = self.state.ws(ws) else { return Vec::new() };
-        let mut fx = vec![Effect::ClearProfile { ws, delete: false }];
-        fx.extend(w.tabs.iter().filter(|t| self.is_live(t.id)).map(|t| Effect::Reload { ws, tab: t.id }));
-        fx
+    pub fn open_home(&mut self, workspace_id: Uuid) -> Vec<Effect> {
+        match self.state.workspace(workspace_id).map(|workspace| workspace.base_url.clone()) {
+            Some(base) => self.open_app(workspace_id, AUTH, base, false),
+            None => Vec::new(),
+        }
     }
 
-    /// Main-frame location report (page load or SPA change). Keeps one tab per app (spec §5.4):
-    /// AUTH tabs adopt or merge into the app they land on, other tabs are retagged when free.
-    pub fn observe_location(&mut self, tab: Uuid, url: Url) -> Vec<Effect> {
-        let Some((w, t)) = self.state.find_tab(tab) else { return Vec::new() };
-        if !urls::belongs(&url, &w.base_url) {
-            return Vec::new();
-        }
-        let ws = w.id;
-        let current = t.app_id.clone();
-        let page = router::app_id(&url, &w.base_url);
-        let other = w.tab_by_app(&page).map(|o| o.id).filter(|&o| o != tab && page != AUTH);
-        let was_active_tab = w.active_tab_id == Some(tab);
-
-        if current == AUTH && page != AUTH {
-            if let Some(o) = other {
-                let mut fx = Vec::new();
-                self.navigate_tab(ws, o, url, &mut fx);
-                if was_active_tab {
-                    // Only hand this workspace's own selection to `o`; never change which
-                    // workspace is globally shown from a background page report.
-                    if let Some(w) = self.state.ws_mut(ws) {
-                        w.active_tab_id = Some(o);
-                    }
-                }
-                self.remove_tab(ws, tab, &mut fx);
-                return self.presented(fx);
+    pub fn open_login(&mut self, workspace_id: Uuid, url: Url) -> (Uuid, Vec<Effect>) {
+        let Some(workspace) = self.state.workspace(workspace_id) else { return (Uuid::nil(), Vec::new()) };
+        let mut effects = Vec::new();
+        let tab_id = match workspace.tab_by_app(AUTH).map(|tab| tab.id) {
+            Some(tab_id) => {
+                self.navigate_tab(workspace_id, tab_id, url, &mut effects);
+                tab_id
             }
-        }
-        let t = self.state.ws_mut(ws).and_then(|w| w.tab_mut(tab)).expect("found above");
-        if page != AUTH && page != current && other.is_none() {
-            t.app_id = page;
-        }
-        t.url = url;
-        vec![Effect::Changed]
+            None => self.push_tab(workspace_id, AUTH, url),
+        };
+        self.select(workspace_id, tab_id);
+        (tab_id, self.present(effects))
     }
 
-    /// Native document-title change: tab title = page part; workspace name = instance part unless user-named.
-    pub fn observe_title(&mut self, tab: Uuid, title: &str) -> Vec<Effect> {
-        let (page, instance) = split_title(title);
-        let Some(w) = self.state.ws_of_tab_mut(tab) else { return Vec::new() };
-        if !w.name_custom {
-            if let Some(i) = instance {
-                w.name = truncate(i, 64);
-            }
+    pub fn finish_login(&mut self, workspace_id: Uuid, tab_id: Uuid, login: &str) -> Vec<Effect> {
+        let mut effects = self.set_login(workspace_id, Some(login.to_string()));
+        if let Some(base) = self.state.workspace(workspace_id).map(|workspace| workspace.base_url.clone()) {
+            self.navigate_tab(workspace_id, tab_id, base, &mut effects);
         }
-        if !page.is_empty() {
-            if let Some(t) = w.tab_mut(tab) {
-                t.title = truncate(page, MAX_TITLE);
-            }
-        }
-        vec![Effect::Changed]
-    }
-
-    /// Once-per-page metadata from the bridge. Keeps only data-URL images and in-workspace app links.
-    pub fn observe_meta(&mut self, tab: Uuid, icon: Option<String>, apps: Vec<AppLink>) -> Vec<Effect> {
-        let Some(w) = self.state.ws_of_tab_mut(tab) else { return Vec::new() };
-        // Some("") = the server has no custom favicon or logo (initials); None = unknown, keep.
-        match icon {
-            _ if w.icon_custom => {}
-            Some(i) if i.is_empty() => w.icon = None,
-            Some(i) if valid_icon(&i) => w.icon = Some(i),
-            _ => {}
-        }
-        let base = w.base_url.clone();
-        let mut seen = HashSet::new();
-        let entries: Vec<AppEntry> = apps
-            .into_iter()
-            .filter_map(|a| {
-                let href = Url::parse(&a.href).ok().filter(|h| urls::belongs(h, &base))?;
-                let id = router::app_id(&href, &base);
-                let name = a.name.trim();
-                (id != AUTH && !name.is_empty() && seen.insert(id.clone()))
-                    .then(|| AppEntry { id, name: truncate(name, 64), href })
-            })
-            .take(MAX_APPS)
-            .collect();
-        if !entries.is_empty() {
-            w.apps = entries;
-        }
-        vec![Effect::Changed]
+        effects.push(Effect::Changed);
+        effects
     }
 
     pub fn on_new_window(&mut self, url: &Url) -> Vec<Effect> {
         match router::classify_new_window(&self.state, url) {
-            Route::Activate { ws, app_id, url } => self.open_link(ws, &app_id, url),
-            Route::External(u) => vec![Effect::OpenExternal(u)],
+            Route::Activate { workspace_id, app_id, url } => self.open_link(workspace_id, &app_id, url),
+            Route::External(url) => vec![Effect::OpenExternal(url)],
             Route::InPlace | Route::Deny => Vec::new(),
         }
     }
 
-    pub fn open_app_from_menu(&mut self, ws: Uuid, app_id: &str) -> Vec<Effect> {
-        let href = self.state.ws(ws).and_then(|w| w.apps.iter().find(|a| a.id == app_id)).map(|a| a.href.clone());
-        match href {
-            Some(href) => self.open_app(ws, app_id, href, false),
-            None => Vec::new(),
-        }
-    }
-
-    pub fn open_home(&mut self, ws: Uuid) -> Vec<Effect> {
-        match self.state.ws(ws).map(|w| w.base_url.clone()) {
-            Some(base) => self.open_app(ws, AUTH, base, false),
-            None => Vec::new(),
-        }
-    }
-
-    /// Tab menu "Reload at app home": navigate to the app's landing page, or reload if already there.
-    pub fn reload_home(&mut self, ws: Uuid, tab: Uuid) -> Vec<Effect> {
-        let Some(home) = self.state.ws(ws).and_then(|w| w.tab(tab).map(|t| router::home_url(&w.base_url, &t.app_id)))
-        else {
+    pub fn observe_location(&mut self, tab_id: Uuid, url: Url) -> Vec<Effect> {
+        let Some((workspace, tab)) = self.state.find_tab(tab_id) else { return Vec::new() };
+        if !urls::belongs(&url, &workspace.base_url) {
             return Vec::new();
+        }
+        let workspace_id = workspace.id;
+        let current_app = tab.app_id.clone();
+        let page_app = router::app_id(&url, &workspace.base_url);
+        let other_tab_id = workspace
+            .tab_by_app(&page_app)
+            .map(|other| other.id)
+            .filter(|&other_id| other_id != tab_id && page_app != AUTH);
+        let was_active_tab = workspace.active_tab_id == Some(tab_id);
+
+        if current_app == AUTH && page_app != AUTH {
+            if let Some(other_tab_id) = other_tab_id {
+                let mut effects = Vec::new();
+                self.navigate_tab(workspace_id, other_tab_id, url, &mut effects);
+                if was_active_tab {
+                    if let Some(workspace) = self.state.workspace_mut(workspace_id) {
+                        workspace.active_tab_id = Some(other_tab_id);
+                    }
+                }
+                self.remove_tab(workspace_id, tab_id, &mut effects);
+                return self.present(effects);
+            }
+        }
+        let tab = self
+            .state
+            .workspace_mut(workspace_id)
+            .and_then(|workspace| workspace.tab_mut(tab_id))
+            .expect("found above");
+        if page_app != AUTH && page_app != current_app && other_tab_id.is_none() {
+            tab.app_id = page_app;
+        }
+        tab.url = url;
+        vec![Effect::Changed]
+    }
+
+    pub fn observe_title(&mut self, tab_id: Uuid, title: &str) -> Vec<Effect> {
+        let (page, instance) = split_title(title);
+        let Some(workspace) = self.state.workspace_of_tab_mut(tab_id) else { return Vec::new() };
+        if !workspace.name_custom {
+            if let Some(instance) = instance {
+                workspace.name = truncate(instance, MAX_NAME);
+            }
+        }
+        if !page.is_empty() {
+            if let Some(tab) = workspace.tab_mut(tab_id) {
+                tab.title = truncate(page, MAX_TITLE);
+            }
+        }
+        vec![Effect::Changed]
+    }
+
+    pub fn observe_meta(&mut self, tab_id: Uuid, icon: Option<String>, links: Vec<AppLink>) -> Vec<Effect> {
+        let Some(workspace) = self.state.workspace_of_tab_mut(tab_id) else { return Vec::new() };
+        match icon {
+            _ if workspace.icon_custom => {}
+            Some(icon) if icon.is_empty() => workspace.icon = None,
+            Some(icon) if valid_icon(&icon) => workspace.icon = Some(icon),
+            _ => {}
+        }
+        let apps = app_entries(links, &workspace.base_url);
+        if !apps.is_empty() {
+            workspace.apps = apps;
+        }
+        vec![Effect::Changed]
+    }
+
+    fn open_link(&mut self, workspace_id: Uuid, app_id: &str, url: Url) -> Vec<Effect> {
+        let Some(workspace) = self.state.workspace(workspace_id) else { return Vec::new() };
+        if let Some(tab_id) = workspace.tabs.iter().find(|tab| tab.url == url).map(|tab| tab.id) {
+            self.select(workspace_id, tab_id);
+            return self.present(Vec::new());
+        }
+        let is_app_home = url == router::home_url(&workspace.base_url, app_id)
+            || workspace.apps.iter().any(|app| app.href == url);
+        if is_app_home {
+            return self.open_app(workspace_id, app_id, url, false);
+        }
+        let tab_id = self.push_tab(workspace_id, app_id, url);
+        self.select(workspace_id, tab_id);
+        self.present(Vec::new())
+    }
+
+    fn push_tab(&mut self, workspace_id: Uuid, app_id: &str, url: Url) -> Uuid {
+        let workspace = self.state.workspace_mut(workspace_id).expect("caller checked the workspace");
+        let tab = Tab::new(app_id, &workspace.app_name(app_id), url);
+        let tab_id = tab.id;
+        workspace.tabs.push(tab);
+        tab_id
+    }
+
+    fn live_tabs(&self, workspace_id: Uuid) -> Vec<(Uuid, Url)> {
+        let Some(workspace) = self.state.workspace(workspace_id) else { return Vec::new() };
+        workspace
+            .tabs
+            .iter()
+            .filter(|tab| self.is_live(tab.id))
+            .map(|tab| (tab.id, tab.url.clone()))
+            .collect()
+    }
+
+    fn select(&mut self, workspace_id: Uuid, tab_id: Uuid) {
+        if let Some(workspace) = self.state.workspace_mut(workspace_id) {
+            workspace.active_tab_id = Some(tab_id);
+        }
+        self.state.active_workspace_id = Some(workspace_id);
+    }
+
+    fn navigate_tab(&mut self, workspace_id: Uuid, tab_id: Uuid, url: Url, effects: &mut Vec<Effect>) {
+        let live = self.is_live(tab_id);
+        let Some(tab) = self.state.workspace_mut(workspace_id).and_then(|workspace| workspace.tab_mut(tab_id)) else {
+            return;
         };
-        let mut fx = Vec::new();
-        self.navigate_tab(ws, tab, home, &mut fx);
-        if fx.is_empty() {
-            fx = self.reload_tab(ws, tab);
-        }
-        fx.push(Effect::Changed);
-        fx
-    }
-
-    fn select(&mut self, ws: Uuid, tab: Uuid) {
-        if let Some(w) = self.state.ws_mut(ws) {
-            w.active_tab_id = Some(tab);
-        }
-        self.state.active_workspace_id = Some(ws);
-    }
-
-    fn navigate_tab(&mut self, ws: Uuid, tab: Uuid, url: Url, fx: &mut Vec<Effect>) {
-        let live = self.is_live(tab);
-        let Some(t) = self.state.ws_mut(ws).and_then(|w| w.tab_mut(tab)) else { return };
-        if t.url == url {
+        if tab.url == url {
             return;
         }
-        t.url = url.clone();
+        tab.url = url.clone();
         if live {
-            fx.push(Effect::Navigate { ws, tab, url });
+            effects.push(Effect::Navigate { workspace_id, tab_id, url });
         }
     }
 
-    /// Removes the tab; a selected tab hands the selection to its right neighbour, else its left one.
-    fn remove_tab(&mut self, ws: Uuid, tab: Uuid, fx: &mut Vec<Effect>) {
-        let Some(w) = self.state.ws_mut(ws) else { return };
-        let Some(idx) = w.tabs.iter().position(|t| t.id == tab) else { return };
-        w.tabs.remove(idx);
-        if w.active_tab_id == Some(tab) {
-            w.active_tab_id = w.tabs.get(idx).or_else(|| w.tabs.last()).map(|t| t.id);
+    fn remove_tab(&mut self, workspace_id: Uuid, tab_id: Uuid, effects: &mut Vec<Effect>) {
+        let Some(workspace) = self.state.workspace_mut(workspace_id) else { return };
+        let Some(index) = workspace.tabs.iter().position(|tab| tab.id == tab_id) else { return };
+        workspace.tabs.remove(index);
+        if workspace.active_tab_id == Some(tab_id) {
+            let neighbour = workspace.tabs.get(index).or_else(|| workspace.tabs.last());
+            workspace.active_tab_id = neighbour.map(|tab| tab.id);
         }
-        self.kill(ws, tab, fx);
+        self.destroy_webview(workspace_id, tab_id, effects);
     }
 
-    fn kill(&mut self, ws: Uuid, tab: Uuid, fx: &mut Vec<Effect>) {
-        if self.is_live(tab) {
-            self.live.retain(|&t| t != tab);
-            fx.push(Effect::Destroy { ws, tab });
+    fn destroy_webview(&mut self, workspace_id: Uuid, tab_id: Uuid, effects: &mut Vec<Effect>) {
+        self.offline.remove(&tab_id);
+        if self.is_live(tab_id) {
+            self.live.retain(|&live_id| live_id != tab_id);
+            effects.push(Effect::Destroy { workspace_id, tab_id });
         }
     }
 
-    /// Ends every selection change: selected tab live and shown (or all hidden), LRU enforced, `Changed`.
-    fn presented(&mut self, mut fx: Vec<Effect>) -> Vec<Effect> {
-        let target = self.state.active_workspace_id.and_then(|ws| {
-            let w = self.state.ws(ws)?;
-            let t = w.tab(w.active_tab_id?)?;
-            Some((ws, t.id, t.url.clone()))
+    fn present(&mut self, mut effects: Vec<Effect>) -> Vec<Effect> {
+        let target = self.state.active_workspace_id.and_then(|workspace_id| {
+            let tab = self.state.workspace(workspace_id)?.active_tab()?;
+            Some((workspace_id, tab.id, tab.url.clone()))
         });
         match target {
-            Some((ws, tab, url)) if !self.overlay => {
-                if !self.is_live(tab) {
-                    fx.push(Effect::Create { ws, tab, url });
+            Some((workspace_id, tab_id, url)) if !self.overlay => {
+                if !self.is_live(tab_id) {
+                    effects.push(Effect::Create { workspace_id, tab_id, url });
                 }
-                self.live.retain(|&t| t != tab);
-                self.live.push(tab);
-                self.evict(&mut fx);
-                fx.push(Effect::Show { ws, tab });
+                self.live.retain(|&live_id| live_id != tab_id);
+                self.live.push(tab_id);
+                self.evict(&mut effects);
+                effects.push(if self.is_offline(tab_id) {
+                    Effect::HideContent
+                } else {
+                    Effect::Show { workspace_id, tab_id }
+                });
             }
-            _ => fx.push(Effect::HideContent),
+            _ => effects.push(Effect::HideContent),
         }
-        fx.push(Effect::Changed);
-        fx
+        effects.push(Effect::Changed);
+        effects
     }
 
-    fn evict(&mut self, fx: &mut Vec<Effect>) {
+    fn evict(&mut self, effects: &mut Vec<Effect>) {
         while self.live.len() > self.max_live {
             let shown = *self.live.last().expect("just pushed");
-            let pinned = |t: Uuid| self.state.find_tab(t).is_some_and(|(_, tab)| tab.pinned);
-            let Some(victim) = self.live.iter().copied().find(|&t| t != shown && !pinned(t)) else { break };
-            let ws = self.state.find_tab(victim).map(|(w, _)| w.id);
-            self.live.retain(|&t| t != victim);
-            if let Some(ws) = ws {
-                fx.push(Effect::Destroy { ws, tab: victim });
+            let pinned = |tab_id: Uuid| self.state.find_tab(tab_id).is_some_and(|(_, tab)| tab.pinned);
+            let Some(victim) = self.live.iter().copied().find(|&tab_id| tab_id != shown && !pinned(tab_id)) else {
+                break;
+            };
+            let workspace_id = self.state.find_tab(victim).map(|(workspace, _)| workspace.id);
+            self.live.retain(|&live_id| live_id != victim);
+            self.offline.remove(&victim);
+            if let Some(workspace_id) = workspace_id {
+                effects.push(Effect::Destroy { workspace_id, tab_id: victim });
             }
         }
     }
+}
+
+fn app_entries(links: Vec<AppLink>, base: &Url) -> Vec<AppEntry> {
+    let mut seen = HashSet::new();
+    links
+        .into_iter()
+        .filter_map(|link| {
+            let href = Url::parse(&link.href).ok().filter(|href| urls::belongs(href, base))?;
+            let id = router::app_id(&href, base);
+            let name = link.name.trim();
+            let keep = id != AUTH && !name.is_empty() && seen.insert(id.clone());
+            keep.then(|| AppEntry { id, name: truncate(name, MAX_NAME), href })
+        })
+        .take(MAX_APPS)
+        .collect()
 }
 
 fn valid_icon(icon: &str) -> bool {
     icon.len() <= MAX_ICON && icon.starts_with("data:image/")
 }
 
-fn truncate(s: &str, max: usize) -> String {
-    s.chars().take(max).collect()
+fn truncate(text: &str, max: usize) -> String {
+    text.chars().take(max).collect()
 }
 
-/// "Documents - Files - Soluce Cloud" → ("Documents - Files", Some("Soluce Cloud")).
-/// The default instance name "Nextcloud" says nothing about the workspace, so it yields None.
 fn split_title(title: &str) -> (&str, Option<&str>) {
-    let t = title.trim();
-    let cut = [" - ", " – "].iter().filter_map(|sep| t.rfind(sep).map(|i| (i, sep.len()))).max();
+    let title = title.trim();
+    let cut = [" - ", " – "]
+        .iter()
+        .filter_map(|separator| title.rfind(separator).map(|index| (index, separator.len())))
+        .max();
     match cut {
-        Some((i, n)) => {
-            let instance = t[i + n..].trim();
-            (t[..i].trim(), (!instance.is_empty() && instance != "Nextcloud").then_some(instance))
+        Some((index, separator_length)) => {
+            let instance = title[index + separator_length..].trim();
+            let instance = (!instance.is_empty() && instance != "Nextcloud").then_some(instance);
+            (title[..index].trim(), instance)
         }
-        None => (t, None),
+        None => (title, None),
     }
 }
 
-/// Reorders `items` to follow `ids`; no-op (false) unless `ids` is a permutation of the items' ids.
 fn reorder<T>(items: &mut [T], ids: &[Uuid], key: impl Fn(&T) -> Uuid) -> bool {
-    if ids.len() != items.len() || !items.iter().all(|i| ids.contains(&key(i))) {
+    if ids.len() != items.len() || !items.iter().all(|item| ids.contains(&key(item))) {
         return false;
     }
-    items.sort_by_key(|i| ids.iter().position(|id| *id == key(i)));
+    items.sort_by_key(|item| ids.iter().position(|id| *id == key(item)));
     true
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn u(s: &str) -> Url {
-        Url::parse(s).unwrap()
-    }
-
-    fn engine_with(bases: &[&str], max_live: usize) -> Engine {
-        let mut e = Engine::new(AppState::default(), max_live);
-        for b in bases {
-            e.add_workspace(b).unwrap();
-        }
-        e
-    }
-
-    fn ws(e: &Engine, i: usize) -> Uuid {
-        e.state.workspaces[i].id
-    }
-
-    fn tab_of_app(e: &Engine, i: usize, app: &str) -> Uuid {
-        e.state.workspaces[i].tab_by_app(app).unwrap().id
-    }
-
-    fn shown(fx: &[Effect]) -> Option<Uuid> {
-        fx.iter().rev().find_map(|f| match f {
-            Effect::Show { tab, .. } => Some(*tab),
-            _ => None,
-        })
-    }
-
-    fn created(fx: &[Effect]) -> Vec<Uuid> {
-        fx.iter().filter_map(|f| match f { Effect::Create { tab, .. } => Some(*tab), _ => None }).collect()
-    }
-
-    fn destroyed(fx: &[Effect]) -> Vec<Uuid> {
-        fx.iter().filter_map(|f| match f { Effect::Destroy { tab, .. } => Some(*tab), _ => None }).collect()
-    }
-
-    #[test]
-    fn add_workspace_creates_and_shows_auth_tab() {
-        let mut e = Engine::new(AppState::default(), MAX_LIVE);
-        let fx = e.add_workspace("cloud.soluce.com").unwrap();
-        let w = &e.state.workspaces[0];
-        assert_eq!(w.base_url, u("https://cloud.soluce.com/"));
-        assert_eq!(e.state.active_workspace_id, Some(w.id));
-        let tab = w.tabs[0].id;
-        assert_eq!(created(&fx), vec![tab]);
-        assert_eq!(shown(&fx), Some(tab));
-        assert_eq!(fx.last(), Some(&Effect::Changed));
-    }
-
-    #[test]
-    fn add_existing_url_activates_instead_of_duplicating() {
-        let mut e = engine_with(&["https://a.com", "https://b.com"], MAX_LIVE);
-        e.add_workspace(" https://A.com/index.php/apps/files ").unwrap();
-        assert_eq!(e.state.workspaces.len(), 2);
-        assert_eq!(e.state.active_workspace_id, Some(ws(&e, 0)));
-    }
-
-    #[test]
-    fn add_invalid_url_is_an_error() {
-        let mut e = Engine::new(AppState::default(), MAX_LIVE);
-        assert!(e.add_workspace("ftp://x.com").is_err());
-        assert!(e.state.workspaces.is_empty());
-    }
-
-    #[test]
-    fn startup_creates_only_the_active_tab_and_repairs_selection() {
-        let mut e = engine_with(&["https://a.com", "https://b.com"], MAX_LIVE);
-        let a = ws(&e, 0);
-        e.open_app(a, "files", u("https://a.com/apps/files/"), true);
-        let files = tab_of_app(&e, 0, "files");
-        let mut fresh = Engine::new(e.state.clone(), MAX_LIVE);
-        assert_eq!(created(&fresh.startup()), vec![files]);
-        fresh.state.active_workspace_id = None;
-        let mut again = Engine::new(fresh.state.clone(), MAX_LIVE);
-        again.startup();
-        assert_eq!(again.state.active_workspace_id, Some(a));
-    }
-
-    #[test]
-    fn open_app_creates_tab_once_then_reuses_it() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let w = ws(&e, 0);
-        let fx = e.open_app(w, "files", u("https://a.com/apps/files/"), true);
-        let files = tab_of_app(&e, 0, "files");
-        assert_eq!(created(&fx), vec![files]);
-        assert_eq!(shown(&fx), Some(files));
-        let deep = u("https://a.com/apps/files/?dir=/Photos");
-        let fx = e.open_app(w, "files", deep.clone(), true);
-        assert!(created(&fx).is_empty());
-        assert!(fx.contains(&Effect::Navigate { ws: w, tab: files, url: deep }));
-        assert_eq!(e.state.workspaces[0].tabs.len(), 2);
-    }
-
-    #[test]
-    fn open_app_from_picker_does_not_navigate_existing_tab() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let w = ws(&e, 0);
-        e.open_app(w, "files", u("https://a.com/apps/files/?dir=/Photos"), true);
-        let fx = e.open_app(w, "files", u("https://a.com/apps/files/"), false);
-        assert!(!fx.iter().any(|f| matches!(f, Effect::Navigate { .. })));
-    }
-
-    #[test]
-    fn open_app_names_tab_from_app_cache() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        e.state.workspaces[0].apps.push(AppEntry { id: "spreed".into(), name: "Talk".into(), href: u("https://a.com/apps/spreed/") });
-        e.open_app(ws(&e, 0), "spreed", u("https://a.com/apps/spreed/"), true);
-        assert_eq!(e.state.workspaces[0].tab_by_app("spreed").unwrap().title, "Talk");
-    }
-
-    #[test]
-    fn switching_workspaces_restores_each_selected_tab_without_reload() {
-        let mut e = engine_with(&["https://a.com", "https://b.com"], MAX_LIVE);
-        let (a, b) = (ws(&e, 0), ws(&e, 1));
-        e.open_app(a, "calendar", u("https://a.com/apps/calendar/"), true);
-        let cal = tab_of_app(&e, 0, "calendar");
-        e.open_app(b, "deck", u("https://b.com/apps/deck/"), true);
-        let deck = tab_of_app(&e, 1, "deck");
-        assert_eq!(shown(&e.activate_workspace(a)), Some(cal));
-        let fx = e.activate_workspace(b);
-        assert_eq!(shown(&fx), Some(deck));
-        assert!(created(&fx).is_empty());
-    }
-
-    #[test]
-    fn closing_selected_tab_selects_right_then_left_neighbour() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let w = ws(&e, 0);
-        let auth = e.state.workspaces[0].tabs[0].id;
-        e.open_app(w, "files", u("https://a.com/apps/files/"), true);
-        e.open_app(w, "deck", u("https://a.com/apps/deck/"), true);
-        let (files, deck) = (tab_of_app(&e, 0, "files"), tab_of_app(&e, 0, "deck"));
-        e.activate_tab(w, files);
-        let fx = e.close_tab(w, files);
-        assert_eq!(destroyed(&fx), vec![files]);
-        assert_eq!(shown(&fx), Some(deck));
-        assert_eq!(shown(&e.close_tab(w, deck)), Some(auth));
-        let fx = e.close_tab(w, auth);
-        assert!(fx.contains(&Effect::HideContent));
-        assert_eq!(e.state.workspaces[0].active_tab_id, None);
-    }
-
-    #[test]
-    fn lru_evicts_least_recent_unpinned_tab_and_recreates_on_return() {
-        let mut e = engine_with(&["https://a.com"], 2);
-        let w = ws(&e, 0);
-        let auth = e.state.workspaces[0].tabs[0].id;
-        e.open_app(w, "files", u("https://a.com/apps/files/"), true);
-        let fx = e.open_app(w, "deck", u("https://a.com/apps/deck/"), true);
-        assert_eq!(destroyed(&fx), vec![auth]);
-        assert!(!e.is_live(auth));
-        assert_eq!(created(&e.activate_tab(w, auth)), vec![auth]);
-    }
-
-    #[test]
-    fn set_theme_saves_and_applies_it() {
-        let mut e = engine_with(&[], MAX_LIVE);
-        assert_eq!(e.set_theme(Appearance::Dark), vec![Effect::Theme(Appearance::Dark), Effect::Changed]);
-        assert_eq!(e.state.theme, Appearance::Dark);
-    }
-
-    #[test]
-    fn lru_skips_pinned_tabs() {
-        let mut e = engine_with(&["https://a.com"], 2);
-        let w = ws(&e, 0);
-        let auth = e.state.workspaces[0].tabs[0].id;
-        e.set_pinned(w, auth, true);
-        e.open_app(w, "files", u("https://a.com/apps/files/"), true);
-        let files = tab_of_app(&e, 0, "files");
-        let fx = e.open_app(w, "deck", u("https://a.com/apps/deck/"), true);
-        assert_eq!(destroyed(&fx), vec![files]);
-        assert!(e.is_live(auth));
-    }
-
-    #[test]
-    fn overlay_hides_content_and_restores_it() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let tab = e.state.workspaces[0].tabs[0].id;
-        let fx = e.set_overlay(true);
-        assert!(fx.contains(&Effect::HideContent));
-        assert_eq!(shown(&fx), None);
-        assert_eq!(shown(&e.set_overlay(false)), Some(tab));
-    }
-
-    #[test]
-    fn remove_workspace_destroys_tabs_clears_profile_and_selects_neighbour() {
-        let mut e = engine_with(&["https://a.com", "https://b.com"], MAX_LIVE);
-        let (a, b) = (ws(&e, 0), ws(&e, 1));
-        let b_tab = e.state.workspaces[1].tabs[0].id;
-        let fx = e.remove_workspace(b);
-        assert_eq!(destroyed(&fx), vec![b_tab]);
-        assert!(fx.contains(&Effect::ClearProfile { ws: b, delete: true }));
-        assert_eq!(e.state.active_workspace_id, Some(a));
-        let fx = e.remove_workspace(a);
-        assert_eq!(e.state.active_workspace_id, None);
-        assert!(fx.contains(&Effect::HideContent));
-    }
-
-    #[test]
-    fn reorder_requires_a_permutation() {
-        let mut e = engine_with(&["https://a.com", "https://b.com"], MAX_LIVE);
-        let (a, b) = (ws(&e, 0), ws(&e, 1));
-        assert!(e.reorder_workspaces(&[a]).is_empty());
-        assert!(e.reorder_workspaces(&[a, a]).is_empty());
-        assert_eq!(e.reorder_workspaces(&[b, a]), vec![Effect::Changed]);
-        assert_eq!(ws(&e, 0), b);
-    }
-
-    #[test]
-    fn rename_sets_custom_name_and_empty_resets_to_host() {
-        let mut e = engine_with(&["https://cloud.a.com"], MAX_LIVE);
-        let w = ws(&e, 0);
-        e.rename_workspace(w, "  Soluce  ");
-        assert_eq!((e.state.workspaces[0].name.as_str(), e.state.workspaces[0].name_custom), ("Soluce", true));
-        e.rename_workspace(w, " ");
-        assert_eq!((e.state.workspaces[0].name.as_str(), e.state.workspaces[0].name_custom), ("cloud.a.com", false));
-    }
-
-    #[test]
-    fn clear_browsing_data_reloads_live_tabs_only() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let w = ws(&e, 0);
-        let tab = e.state.workspaces[0].tabs[0].id;
-        e.state.workspaces[0].tabs.push(Tab::new("deck", "Deck", u("https://a.com/apps/deck/")));
-        assert_eq!(
-            e.clear_browsing_data(w),
-            vec![Effect::ClearProfile { ws: w, delete: false }, Effect::Reload { ws: w, tab }]
-        );
-    }
-
-    #[test]
-    fn auth_tab_adopts_first_real_app_after_login() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let tab = e.state.workspaces[0].tabs[0].id;
-        e.observe_location(tab, u("https://a.com/login?redirect_url=/"));
-        assert_eq!(e.state.workspaces[0].tabs[0].app_id, AUTH);
-        e.observe_location(tab, u("https://a.com/apps/dashboard/"));
-        let t = &e.state.workspaces[0].tabs[0];
-        assert_eq!((t.app_id.as_str(), t.url.as_str()), ("dashboard", "https://a.com/apps/dashboard/"));
-    }
-
-    #[test]
-    fn auth_tab_landing_on_open_app_merges_into_it() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let w = ws(&e, 0);
-        e.open_app(w, "files", u("https://a.com/apps/files/"), true);
-        let files = tab_of_app(&e, 0, "files");
-        let auth = created(&e.open_home(w))[0];
-        let docs = u("https://a.com/apps/files/?dir=/Docs");
-        let fx = e.observe_location(auth, docs.clone());
-        assert!(destroyed(&fx).contains(&auth));
-        assert!(e.state.workspaces[0].tab(auth).is_none());
-        assert_eq!(shown(&fx), Some(files));
-        assert!(fx.contains(&Effect::Navigate { ws: w, tab: files, url: docs }));
-    }
-
-    #[test]
-    fn page_of_other_app_retags_tab_unless_that_app_is_open() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let w = ws(&e, 0);
-        e.open_app(w, "files", u("https://a.com/apps/files/"), true);
-        e.open_app(w, "deck", u("https://a.com/apps/deck/"), true);
-        let files = tab_of_app(&e, 0, "files");
-        e.observe_location(files, u("https://a.com/apps/deck/#/board/1"));
-        assert_eq!(e.state.workspaces[0].tab(files).unwrap().app_id, "files", "deck open elsewhere: tolerated duplicate");
-        e.observe_location(files, u("https://a.com/apps/calendar/"));
-        assert_eq!(e.state.workspaces[0].tab(files).unwrap().app_id, "calendar");
-    }
-
-    #[test]
-    fn location_report_updates_url_and_ignores_foreign_urls() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let w = ws(&e, 0);
-        e.open_app(w, "files", u("https://a.com/apps/files/"), true);
-        let files = tab_of_app(&e, 0, "files");
-        let photos = u("https://a.com/apps/files/?dir=/Photos");
-        e.observe_location(files, photos.clone());
-        assert_eq!(e.state.workspaces[0].tab(files).unwrap().url, photos);
-        assert!(e.observe_location(files, u("https://idp.example.com/auth")).is_empty());
-        assert_eq!(e.state.workspaces[0].tab(files).unwrap().url, photos);
-    }
-
-    #[test]
-    fn title_sets_tab_title_and_workspace_name_unless_custom() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let tab = e.state.workspaces[0].tabs[0].id;
-        e.observe_title(tab, "Documents - Files - Soluce Cloud");
-        assert_eq!(e.state.workspaces[0].tabs[0].title, "Documents - Files");
-        assert_eq!(e.state.workspaces[0].name, "Soluce Cloud");
-        e.observe_title(tab, "Files – Nextcloud");
-        assert_eq!(e.state.workspaces[0].name, "Soluce Cloud", "default instance name ignored");
-        e.rename_workspace(ws(&e, 0), "Mine");
-        e.observe_title(tab, "Files - Other");
-        assert_eq!(e.state.workspaces[0].name, "Mine");
-    }
-
-    #[test]
-    fn meta_keeps_only_safe_icon_and_workspace_app_links() {
-        let mut e = engine_with(&["https://a.com/nc"], MAX_LIVE);
-        let tab = e.state.workspaces[0].tabs[0].id;
-        let link = |name: &str, href: &str| AppLink { name: name.into(), href: href.into() };
-        e.observe_meta(
-            tab,
-            Some("javascript:alert(1)".into()),
-            vec![
-                link("Files", "https://a.com/nc/apps/files/"),
-                link("Files again", "https://a.com/nc/index.php/apps/files/"),
-                link("Talk", "https://a.com/nc/apps/spreed/"),
-                link("Evil", "https://evil.com/apps/x/"),
-                link("OIDC", "https://a.com/nc/apps/user_oidc/"),
-                link("", "https://a.com/nc/apps/deck/"),
-            ],
-        );
-        let w = &e.state.workspaces[0];
-        assert_eq!(w.icon, None);
-        assert_eq!(w.apps.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(), vec!["files", "spreed"]);
-        e.observe_meta(tab, Some("data:image/png;base64,AAAA".into()), vec![]);
-        let w = &e.state.workspaces[0];
-        assert_eq!(w.icon.as_deref(), Some("data:image/png;base64,AAAA"));
-        assert_eq!(w.apps.len(), 2, "an empty report keeps the cache");
-    }
-
-    #[test]
-    fn new_window_to_other_workspace_switches_and_opens_app() {
-        let mut e = engine_with(&["https://a.com", "https://b.com"], MAX_LIVE);
-        let (a, b) = (ws(&e, 0), ws(&e, 1));
-        e.activate_workspace(a);
-        let board = u("https://b.com/apps/deck/#/board/5");
-        let fx = e.on_new_window(&board);
-        let deck = tab_of_app(&e, 1, "deck");
-        assert_eq!(e.state.active_workspace_id, Some(b));
-        assert_eq!(shown(&fx), Some(deck));
-        assert_eq!(e.state.workspaces[1].tab(deck).unwrap().url, board);
-        let gh = u("https://github.com/x");
-        assert_eq!(e.on_new_window(&gh), vec![Effect::OpenExternal(gh)]);
-    }
-
-    #[test]
-    fn new_window_links_give_documents_their_own_tabs_and_reuse_app_homes() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let selected = |e: &Engine| e.state.workspaces[0].active_tab_id.unwrap();
-        let doc1 = u("https://a.com/apps/eurooffice/1?filePath=%2Fa.docx");
-        e.on_new_window(&doc1);
-        let t1 = selected(&e);
-        e.on_new_window(&u("https://a.com/apps/eurooffice/2?filePath=%2Fb.docx"));
-        let t2 = selected(&e);
-        assert_ne!(t1, t2, "a second document of the same app gets its own tab");
-        let fx = e.on_new_window(&doc1);
-        assert_eq!(shown(&fx), Some(t1), "the same document selects its tab");
-        assert!(created(&fx).is_empty());
-        // An app home (app menu link) selects the app's tab and keeps its page.
-        e.on_new_window(&u("https://a.com/apps/files/?dir=/Photos"));
-        let files = selected(&e);
-        e.activate_tab(ws(&e, 0), t1);
-        let fx = e.on_new_window(&u("https://a.com/apps/files/"));
-        assert_eq!(shown(&fx), Some(files));
-        assert!(!fx.iter().any(|f| matches!(f, Effect::Navigate { .. })));
-        assert_eq!(e.state.workspaces[0].tabs.len(), 4, "auth + 2 documents + files");
-    }
-
-    #[test]
-    fn menu_opens_cached_app_and_home_opens_new_auth_tab() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let w = ws(&e, 0);
-        assert!(e.open_app_from_menu(w, "deck").is_empty(), "unknown app");
-        e.state.workspaces[0].apps.push(AppEntry { id: "deck".into(), name: "Deck".into(), href: u("https://a.com/apps/deck/") });
-        e.open_app_from_menu(w, "deck");
-        assert_eq!(e.state.workspaces[0].tab_by_app("deck").unwrap().title, "Deck");
-        e.open_home(w);
-        assert_eq!(e.state.workspaces[0].tabs.iter().filter(|t| t.app_id == AUTH).count(), 2);
-    }
-
-    #[test]
-    fn reload_home_navigates_then_reloads() {
-        let mut e = engine_with(&["https://a.com/nc"], MAX_LIVE);
-        let w = ws(&e, 0);
-        e.open_app(w, "files", u("https://a.com/nc/apps/files/?dir=/x"), true);
-        let files = tab_of_app(&e, 0, "files");
-        let fx = e.reload_home(w, files);
-        assert!(fx.contains(&Effect::Navigate { ws: w, tab: files, url: u("https://a.com/nc/apps/files/") }));
-        assert!(e.reload_home(w, files).contains(&Effect::Reload { ws: w, tab: files }));
-    }
-
-    #[test]
-    fn location_merge_in_background_workspace_updates_that_workspaces_selection_only() {
-        let mut e = engine_with(&["https://a.com", "https://b.com"], MAX_LIVE);
-        let (a, b) = (ws(&e, 0), ws(&e, 1));
-        e.open_app(a, "files", u("https://a.com/apps/files/"), true);
-        let files = tab_of_app(&e, 0, "files");
-        let auth = created(&e.open_home(a))[0];
-        e.activate_workspace(b);
-        let docs = u("https://a.com/apps/files/?dir=/Docs");
-        let fx = e.observe_location(auth, docs);
-        assert_eq!(e.state.workspaces[0].active_tab_id, Some(files), "A's own selection moves to the merge target");
-        assert_eq!(e.state.active_workspace_id, Some(b), "background report never switches the shown workspace");
-        assert!(e.state.workspaces[0].tab(auth).is_none());
-        assert!(destroyed(&fx).contains(&auth));
-        let b_tab = e.state.workspaces[1].tabs[0].id;
-        assert_eq!(shown(&fx), Some(b_tab), "B, not A, stays on screen");
-    }
-
-    #[test]
-    fn meta_icon_size_boundary_enforced_and_previous_kept_on_reject() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let tab = e.state.workspaces[0].tabs[0].id;
-        let prefix = "data:image/png;base64,";
-        let ok = format!("{prefix}{}", "A".repeat(MAX_ICON - prefix.len()));
-        assert_eq!(ok.len(), MAX_ICON);
-        e.observe_meta(tab, Some(ok.clone()), vec![]);
-        assert_eq!(e.state.workspaces[0].icon.as_deref(), Some(ok.as_str()));
-        let too_big = format!("{ok}A");
-        e.observe_meta(tab, Some(too_big), vec![]);
-        assert_eq!(e.state.workspaces[0].icon.as_deref(), Some(ok.as_str()), "oversized icon rejected, previous kept");
-    }
-
-    #[test]
-    fn empty_icon_report_clears_the_server_icon_but_never_a_custom_one() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let (w, tab) = (ws(&e, 0), e.state.workspaces[0].tabs[0].id);
-        e.observe_meta(tab, Some("data:image/png;base64,SERVER".into()), vec![]);
-        e.observe_meta(tab, None, vec![]);
-        assert_eq!(e.state.workspaces[0].icon.as_deref(), Some("data:image/png;base64,SERVER"), "unknown keeps it");
-        e.observe_meta(tab, Some(String::new()), vec![]);
-        assert_eq!(e.state.workspaces[0].icon, None, "no custom image on the server: initials");
-        assert_eq!(e.set_icon(w, Some("data:image/png;base64,MINE".into())), vec![Effect::Changed]);
-        e.observe_meta(tab, Some("data:image/png;base64,SERVER".into()), vec![]);
-        e.observe_meta(tab, Some(String::new()), vec![]);
-        assert_eq!(e.state.workspaces[0].icon.as_deref(), Some("data:image/png;base64,MINE"));
-        assert!(e.set_icon(w, Some("javascript:alert(1)".into())).is_empty(), "invalid icon rejected");
-        e.set_icon(w, None);
-        assert!(!e.state.workspaces[0].icon_custom);
-        e.observe_meta(tab, Some("data:image/png;base64,SERVER".into()), vec![]);
-        assert_eq!(e.state.workspaces[0].icon.as_deref(), Some("data:image/png;base64,SERVER"), "back to the server's");
-    }
-
-    #[test]
-    fn meta_caps_app_links_to_max_apps_in_input_order() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let tab = e.state.workspaces[0].tabs[0].id;
-        let links: Vec<AppLink> = (0..70)
-            .map(|i| AppLink { name: format!("App {i}"), href: format!("https://a.com/apps/app{i}/") })
-            .collect();
-        e.observe_meta(tab, None, links);
-        let w = &e.state.workspaces[0];
-        assert_eq!(w.apps.len(), MAX_APPS);
-        let want: Vec<String> = (0..MAX_APPS).map(|i| format!("app{i}")).collect();
-        assert_eq!(w.apps.iter().map(|a| a.id.clone()).collect::<Vec<_>>(), want);
-    }
-
-    #[test]
-    fn title_page_part_truncated_to_max_title() {
-        let mut e = engine_with(&["https://a.com"], MAX_LIVE);
-        let tab = e.state.workspaces[0].tabs[0].id;
-        let long_page = "x".repeat(300);
-        e.observe_title(tab, &format!("{long_page} - Some Cloud"));
-        let title = &e.state.workspaces[0].tabs[0].title;
-        assert_eq!(title.chars().count(), MAX_TITLE);
-        assert_eq!(title, &"x".repeat(MAX_TITLE));
-    }
-}
+#[path = "../tests/unit/engine.rs"]
+mod tests;

@@ -24,3 +24,8 @@
 .sidebar .add:hover { background: var(--hover); color: var(--text); }
 .sidebar .slot.active .add { background: var(--accent); color: #fff; box-shadow: none; }
 .sidebar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sidebar .badge {
+  position: absolute; top: -4px; right: 6px; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box;
+  border-radius: 8px; background: var(--danger); color: #fff; font-size: 10px; font-weight: 600; line-height: 16px;
+  text-align: center; pointer-events: none; box-shadow: 0 0 0 2px var(--chrome);
+}

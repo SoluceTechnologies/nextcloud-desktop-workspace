@@ -13,15 +13,15 @@ export function AddServerForm({ onDone }: { onDone?: () => void }) {
     <form
       className={welcome ? 'sheet welcome' : 'sheet'}
       onKeyDown={onDone ? onEscape(onDone) : undefined}
-      onSubmit={async (e) => {
-        e.preventDefault();
+      onSubmit={async (event) => {
+        event.preventDefault();
         setBusy(true);
         setError(null);
         try {
           await api.addWorkspace(url);
           onDone?.();
-        } catch (err) {
-          setError(String(err));
+        } catch (failure) {
+          setError(String(failure));
         } finally {
           setBusy(false);
         }
@@ -46,8 +46,8 @@ export function AddServerForm({ onDone }: { onDone?: () => void }) {
           placeholder="cloud.example.com"
           aria-invalid={error ? true : undefined}
           value={url}
-          onChange={(e) => {
-            setUrl(e.target.value);
+          onChange={(event) => {
+            setUrl(event.target.value);
             setError(null);
           }}
         />

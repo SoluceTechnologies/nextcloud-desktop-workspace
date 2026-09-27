@@ -22,6 +22,7 @@
     "allow-workspace-menu",
     "allow-tab-menu",
     "allow-apps-menu",
-    "allow-reveal-download"
+    "allow-reveal-download",
+    "allow-retry-tab"
   ]
 }

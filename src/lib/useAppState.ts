@@ -7,7 +7,7 @@ export function useAppState(): AppState | null {
   const [state, setState] = useState<AppState | null>(null);
   useTauriEvent<AppState>('state-changed', setState);
   useEffect(() => {
-    api.getState().then((s) => setState((cur) => cur ?? s));
+    api.getState().then((initial) => setState((current) => current ?? initial));
   }, []);
   return state;
 }

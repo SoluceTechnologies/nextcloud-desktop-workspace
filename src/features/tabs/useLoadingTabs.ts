@@ -1,22 +1,18 @@
 import { useRef, useState } from 'react';
 import { useTauriEvent } from '@/lib/useTauriEvent';
+import { withMembership } from '@/lib/withMembership';
+
+const LOADING_TIMEOUT_MS = 30_000;
 
 export function useLoadingTabs(): Set<string> {
-  const [loading, setLoading] = useState<Set<string>>(() => new Set());
-  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  useTauriEvent<{ tab: string; loading: boolean }>('tab-loading', ({ tab, loading: on }) => {
-    clearTimeout(timers.current.get(tab));
-    if (on) timers.current.set(tab, setTimeout(() => update(tab, false), 30_000));
-    update(tab, on);
+  const [loadingTabs, setLoadingTabs] = useState<Set<string>>(() => new Set());
+  const timeouts = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const setLoading = (tabId: string, loading: boolean) =>
+    setLoadingTabs((current) => withMembership(current, tabId, loading));
+  useTauriEvent<{ tabId: string; loading: boolean }>('tab-loading', ({ tabId, loading }) => {
+    clearTimeout(timeouts.current.get(tabId));
+    if (loading) timeouts.current.set(tabId, setTimeout(() => setLoading(tabId, false), LOADING_TIMEOUT_MS));
+    setLoading(tabId, loading);
   });
-  function update(tab: string, on: boolean) {
-    setLoading((cur) => {
-      if (cur.has(tab) === on) return cur;
-      const next = new Set(cur);
-      if (on) next.add(tab);
-      else next.delete(tab);
-      return next;
-    });
-  }
-  return loading;
+  return loadingTabs;
 }

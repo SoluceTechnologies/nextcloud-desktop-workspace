@@ -1,7 +1,6 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
-            // shell webview
             "get_state",
             "take_notice",
             "add_workspace",
@@ -20,7 +19,7 @@ fn main() {
             "tab_menu",
             "apps_menu",
             "reveal_download",
-            // nextcloud pages (granted at runtime per workspace origin)
+            "retry_tab",
             "nc_report_location",
             "nc_report_meta",
             "nc_report_fullscreen",

@@ -7,47 +7,47 @@ import { imageToIcon } from './imageToIcon';
 import { TileFace } from './WorkspaceTile';
 import './EditWorkspaceForm.css';
 
-export function EditWorkspaceForm({ ws, onDone }: { ws: Workspace; onDone: () => void }) {
-  const [name, setName] = useState(ws.name);
+export function EditWorkspaceForm({ workspace, onDone }: { workspace: Workspace; onDone: () => void }) {
+  const [name, setName] = useState(workspace.name);
   const [icon, setIcon] = useState<string | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
-  const file = useRef<HTMLInputElement>(null);
-  const shown = icon === undefined ? ws.icon : icon;
-  const custom = icon === undefined ? ws.iconCustom : icon !== null;
+  const fileInput = useRef<HTMLInputElement>(null);
+  const shownIcon = icon === undefined ? workspace.icon : icon;
+  const customIcon = icon === undefined ? workspace.iconCustom : icon !== null;
   return (
     <form
       className="sheet"
       onKeyDown={onEscape(onDone)}
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (name !== ws.name) await api.renameWorkspace(ws.id, name);
-        if (icon !== undefined) await api.setWorkspaceIcon(ws.id, icon);
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (name !== workspace.name) await api.renameWorkspace(workspace.id, name);
+        if (icon !== undefined) await api.setWorkspaceIcon(workspace.id, icon);
         onDone();
       }}
     >
       <h1>Edit workspace</h1>
       <div className="icon-row">
         <span className="tile-preview">
-          <TileFace icon={shown} name={name.trim() || ws.name} />
+          <TileFace icon={shownIcon} name={name.trim() || workspace.name} />
         </span>
         <div className="icon-actions">
-          <button type="button" className="btn ghost" onClick={() => file.current?.click()}>
+          <button type="button" className="btn ghost" onClick={() => fileInput.current?.click()}>
             Choose image…
           </button>
-          {custom && (
+          {customIcon && (
             <button type="button" className="btn ghost" onClick={() => setIcon(null)}>
               Use server icon
             </button>
           )}
         </div>
         <input
-          ref={file}
+          ref={fileInput}
           type="file"
           accept="image/*"
           hidden
-          onChange={async (e) => {
-            const picked = e.target.files?.[0];
-            e.target.value = '';
+          onChange={async (event) => {
+            const picked = event.target.files?.[0];
+            event.target.value = '';
             if (!picked) return;
             try {
               setIcon(await imageToIcon(picked));
@@ -65,11 +65,11 @@ export function EditWorkspaceForm({ ws, onDone }: { ws: Workspace; onDone: () =>
           {error}
         </p>
       )}
-      <label className="field-label" htmlFor="ws-name">
+      <label className="field-label" htmlFor="workspace-name">
         Name
       </label>
       <div className="field">
-        <input id="ws-name" spellCheck={false} value={name} onChange={(e) => setName(e.target.value)} />
+        <input id="workspace-name" spellCheck={false} value={name} onChange={(event) => setName(event.target.value)} />
       </div>
       <p className="hint">Leave empty to use the name shown by the server.</p>
       <div className="actions">

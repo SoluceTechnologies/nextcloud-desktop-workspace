@@ -13,16 +13,16 @@ const APPEARANCES: { value: Appearance; label: string; icon: ReactNode }[] = [
 export function AppearanceSwitch({ theme }: { theme: Appearance }) {
   return (
     <div className="appearance" role="radiogroup" aria-label="Appearance">
-      {APPEARANCES.map((a) => (
+      {APPEARANCES.map((appearance) => (
         <button
-          key={a.value}
+          key={appearance.value}
           role="radio"
-          aria-checked={theme === a.value}
-          aria-label={a.label}
-          title={a.label}
-          onClick={() => api.setTheme(a.value)}
+          aria-checked={theme === appearance.value}
+          aria-label={appearance.label}
+          title={appearance.label}
+          onClick={() => api.setTheme(appearance.value)}
         >
-          {a.icon}
+          {appearance.icon}
         </button>
       ))}
     </div>

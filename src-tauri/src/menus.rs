@@ -1,6 +1,5 @@
-//! Native context menus (drawn above the child webviews, unlike HTML menus) and their events.
-
-use crate::webviews::{engine, run};
+use crate::auth;
+use crate::runtime::{engine, run};
 use serde::Serialize;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::{AppHandle, Emitter, Manager, Wry};
@@ -8,14 +7,16 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
-    WsRename(Uuid),
-    WsReload(Uuid),
-    WsClear(Uuid),
-    WsRemove(Uuid),
-    TabPin(Uuid, Uuid, bool),
-    TabReload(Uuid, Uuid),
-    TabHome(Uuid, Uuid),
-    TabClose(Uuid, Uuid),
+    EditWorkspace(Uuid),
+    ReloadWorkspace(Uuid),
+    ClearWorkspace(Uuid),
+    SignIn(Uuid),
+    SignOut(Uuid),
+    RemoveWorkspace(Uuid),
+    PinTab(Uuid, Uuid, bool),
+    ReloadTab(Uuid, Uuid),
+    ReloadTabHome(Uuid, Uuid),
+    CloseTab(Uuid, Uuid),
     OpenApp(Uuid, String),
     OpenHome(Uuid),
 }
@@ -23,47 +24,51 @@ pub enum Action {
 impl Action {
     pub fn id(&self) -> String {
         match self {
-            Action::WsRename(w) => format!("ws-rename|{w}"),
-            Action::WsReload(w) => format!("ws-reload|{w}"),
-            Action::WsClear(w) => format!("ws-clear|{w}"),
-            Action::WsRemove(w) => format!("ws-remove|{w}"),
-            Action::TabPin(w, t, pin) => format!("tab-pin|{w}|{t}|{pin}"),
-            Action::TabReload(w, t) => format!("tab-reload|{w}|{t}"),
-            Action::TabHome(w, t) => format!("tab-home|{w}|{t}"),
-            Action::TabClose(w, t) => format!("tab-close|{w}|{t}"),
-            Action::OpenApp(w, app) => format!("open-app|{w}|{app}"),
-            Action::OpenHome(w) => format!("open-home|{w}"),
+            Action::EditWorkspace(workspace_id) => format!("ws-rename|{workspace_id}"),
+            Action::ReloadWorkspace(workspace_id) => format!("ws-reload|{workspace_id}"),
+            Action::ClearWorkspace(workspace_id) => format!("ws-clear|{workspace_id}"),
+            Action::SignIn(workspace_id) => format!("ws-sign-in|{workspace_id}"),
+            Action::SignOut(workspace_id) => format!("ws-sign-out|{workspace_id}"),
+            Action::RemoveWorkspace(workspace_id) => format!("ws-remove|{workspace_id}"),
+            Action::PinTab(workspace_id, tab_id, pinned) => format!("tab-pin|{workspace_id}|{tab_id}|{pinned}"),
+            Action::ReloadTab(workspace_id, tab_id) => format!("tab-reload|{workspace_id}|{tab_id}"),
+            Action::ReloadTabHome(workspace_id, tab_id) => format!("tab-home|{workspace_id}|{tab_id}"),
+            Action::CloseTab(workspace_id, tab_id) => format!("tab-close|{workspace_id}|{tab_id}"),
+            Action::OpenApp(workspace_id, app_id) => format!("open-app|{workspace_id}|{app_id}"),
+            Action::OpenHome(workspace_id) => format!("open-home|{workspace_id}"),
         }
     }
 
     pub fn parse(id: &str) -> Option<Self> {
         let parts: Vec<&str> = id.split('|').collect();
-        let uuid = |i: usize| parts.get(i).and_then(|s| Uuid::parse_str(s).ok());
+        let uuid_at = |index: usize| parts.get(index).and_then(|part| Uuid::parse_str(part).ok());
         Some(match parts[0] {
-            "ws-rename" => Action::WsRename(uuid(1)?),
-            "ws-reload" => Action::WsReload(uuid(1)?),
-            "ws-clear" => Action::WsClear(uuid(1)?),
-            "ws-remove" => Action::WsRemove(uuid(1)?),
-            "tab-pin" => Action::TabPin(uuid(1)?, uuid(2)?, *parts.get(3)? == "true"),
-            "tab-reload" => Action::TabReload(uuid(1)?, uuid(2)?),
-            "tab-home" => Action::TabHome(uuid(1)?, uuid(2)?),
-            "tab-close" => Action::TabClose(uuid(1)?, uuid(2)?),
-            "open-app" => Action::OpenApp(uuid(1)?, parts.get(2)?.to_string()),
-            "open-home" => Action::OpenHome(uuid(1)?),
+            "ws-rename" => Action::EditWorkspace(uuid_at(1)?),
+            "ws-reload" => Action::ReloadWorkspace(uuid_at(1)?),
+            "ws-clear" => Action::ClearWorkspace(uuid_at(1)?),
+            "ws-sign-in" => Action::SignIn(uuid_at(1)?),
+            "ws-sign-out" => Action::SignOut(uuid_at(1)?),
+            "ws-remove" => Action::RemoveWorkspace(uuid_at(1)?),
+            "tab-pin" => Action::PinTab(uuid_at(1)?, uuid_at(2)?, *parts.get(3)? == "true"),
+            "tab-reload" => Action::ReloadTab(uuid_at(1)?, uuid_at(2)?),
+            "tab-home" => Action::ReloadTabHome(uuid_at(1)?, uuid_at(2)?),
+            "tab-close" => Action::CloseTab(uuid_at(1)?, uuid_at(2)?),
+            "open-app" => Action::OpenApp(uuid_at(1)?, parts.get(2)?.to_string()),
+            "open-home" => Action::OpenHome(uuid_at(1)?),
             _ => return None,
         })
     }
 }
 
-/// Asks the shell to open a dialog (see `Dialog` in src/components/Dialogs.tsx).
 #[derive(Clone, Serialize)]
-struct UiRequest {
+#[serde(rename_all = "camelCase")]
+struct DialogRequest {
     kind: &'static str,
-    ws: Uuid,
-    tab: Option<Uuid>,
+    workspace_id: Uuid,
+    tab_id: Option<Uuid>,
 }
 
-fn item(app: &AppHandle, action: Action, text: &str) -> tauri::Result<MenuItem<Wry>> {
+fn menu_item(app: &AppHandle, action: Action, text: &str) -> tauri::Result<MenuItem<Wry>> {
     MenuItem::with_id(app, action.id(), text, true, None::<&str>)
 }
 
@@ -72,97 +77,89 @@ fn popup(app: &AppHandle, items: &[&dyn IsMenuItem<Wry>]) -> tauri::Result<()> {
     window.popup_menu(&Menu::with_items(app, items)?)
 }
 
-pub fn popup_workspace(app: &AppHandle, ws: Uuid) -> tauri::Result<()> {
-    let rename = item(app, Action::WsRename(ws), "Edit workspace…")?;
-    let reload = item(app, Action::WsReload(ws), "Reload")?;
-    let clear = item(app, Action::WsClear(ws), "Clear browsing data…")?;
-    let sep = PredefinedMenuItem::separator(app)?;
-    let remove = item(app, Action::WsRemove(ws), "Remove workspace…")?;
-    popup(app, &[&rename, &reload, &clear, &sep, &remove])
+fn is_pinned(app: &AppHandle, workspace_id: Uuid, tab_id: Uuid) -> bool {
+    engine(app)
+        .state
+        .workspace(workspace_id)
+        .and_then(|workspace| workspace.tab(tab_id))
+        .is_some_and(|tab| tab.pinned)
 }
 
-pub fn popup_tab(app: &AppHandle, ws: Uuid, tab: Uuid) -> tauri::Result<()> {
-    let pinned = engine(app).state.ws(ws).and_then(|w| w.tab(tab)).is_some_and(|t| t.pinned);
-    let pin = item(app, Action::TabPin(ws, tab, !pinned), if pinned { "Unpin" } else { "Pin" })?;
-    let reload = item(app, Action::TabReload(ws, tab), "Reload")?;
-    let home = item(app, Action::TabHome(ws, tab), "Reload at app home")?;
-    let sep = PredefinedMenuItem::separator(app)?;
-    let close = item(app, Action::TabClose(ws, tab), "Close tab")?;
-    popup(app, &[&pin, &reload, &home, &sep, &close])
+pub fn popup_workspace(app: &AppHandle, workspace_id: Uuid) -> tauri::Result<()> {
+    let edit = menu_item(app, Action::EditWorkspace(workspace_id), "Edit workspace…")?;
+    let reload = menu_item(app, Action::ReloadWorkspace(workspace_id), "Reload")?;
+    let clear = menu_item(app, Action::ClearWorkspace(workspace_id), "Clear browsing data…")?;
+    let login = engine(app).state.workspace(workspace_id).and_then(|workspace| workspace.login.clone());
+    let session = match login {
+        Some(login) => menu_item(app, Action::SignOut(workspace_id), &format!("Sign out ({login})"))?,
+        None => menu_item(app, Action::SignIn(workspace_id), "Stay signed in…")?,
+    };
+    let separator = PredefinedMenuItem::separator(app)?;
+    let remove = menu_item(app, Action::RemoveWorkspace(workspace_id), "Remove workspace…")?;
+    popup(app, &[&edit, &reload, &clear, &session, &separator, &remove])
 }
 
-/// Tab bar "+": the workspace's cached Nextcloud app menu, open apps checked.
-pub fn popup_apps(app: &AppHandle, ws: Uuid) -> tauri::Result<()> {
-    let (apps, open): (Vec<(String, String)>, Vec<String>) = {
-        let e = engine(app);
-        let Some(w) = e.state.ws(ws) else { return Ok(()) };
+pub fn popup_tab(app: &AppHandle, workspace_id: Uuid, tab_id: Uuid) -> tauri::Result<()> {
+    let pinned = is_pinned(app, workspace_id, tab_id);
+    let pin = menu_item(app, Action::PinTab(workspace_id, tab_id, !pinned), if pinned { "Unpin" } else { "Pin" })?;
+    let reload = menu_item(app, Action::ReloadTab(workspace_id, tab_id), "Reload")?;
+    let home = menu_item(app, Action::ReloadTabHome(workspace_id, tab_id), "Reload at app home")?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let close = menu_item(app, Action::CloseTab(workspace_id, tab_id), "Close tab")?;
+    popup(app, &[&pin, &reload, &home, &separator, &close])
+}
+
+pub fn popup_apps(app: &AppHandle, workspace_id: Uuid) -> tauri::Result<()> {
+    let (apps, open_apps): (Vec<(String, String)>, Vec<String>) = {
+        let engine = engine(app);
+        let Some(workspace) = engine.state.workspace(workspace_id) else { return Ok(()) };
         (
-            w.apps.iter().map(|a| (a.id.clone(), a.name.clone())).collect(),
-            w.tabs.iter().map(|t| t.app_id.clone()).collect(),
+            workspace.apps.iter().map(|app| (app.id.clone(), app.name.clone())).collect(),
+            workspace.tabs.iter().map(|tab| tab.app_id.clone()).collect(),
         )
     };
     if apps.is_empty() {
-        let home = item(app, Action::OpenHome(ws), "Open home page")?;
+        let home = menu_item(app, Action::OpenHome(workspace_id), "Open home page")?;
         return popup(app, &[&home]);
     }
     let items = apps
         .iter()
-        .map(|(id, name)| CheckMenuItem::with_id(app, Action::OpenApp(ws, id.clone()).id(), name, true, open.contains(id), None::<&str>))
+        .map(|(app_id, name)| {
+            let action = Action::OpenApp(workspace_id, app_id.clone());
+            CheckMenuItem::with_id(app, action.id(), name, true, open_apps.contains(app_id), None::<&str>)
+        })
         .collect::<tauri::Result<Vec<_>>>()?;
-    let refs: Vec<&dyn IsMenuItem<Wry>> = items.iter().map(|i| i as &dyn IsMenuItem<Wry>).collect();
-    popup(app, &refs)
+    let references: Vec<&dyn IsMenuItem<Wry>> = items.iter().map(|item| item as &dyn IsMenuItem<Wry>).collect();
+    popup(app, &references)
 }
 
 pub fn on_event(app: &AppHandle, id: &str) {
     let Some(action) = Action::parse(id) else { return };
-    let request = |kind: &'static str, ws: Uuid, tab: Option<Uuid>| {
-        let _ = app.emit_to("shell", "ui-request", UiRequest { kind, ws, tab });
+    let open_dialog = |kind: &'static str, workspace_id: Uuid, tab_id: Option<Uuid>| {
+        let _ = app.emit_to("shell", "ui-request", DialogRequest { kind, workspace_id, tab_id });
     };
-    let fx = match action {
-        Action::WsRename(ws) => return request("edit", ws, None),
-        Action::WsClear(ws) => return request("confirm-clear", ws, None),
-        Action::WsRemove(ws) => return request("confirm-remove", ws, None),
-        Action::WsReload(ws) => engine(app).reload_workspace(ws),
-        Action::TabPin(ws, tab, pin) => engine(app).set_pinned(ws, tab, pin),
-        Action::TabReload(ws, tab) => engine(app).reload_tab(ws, tab),
-        Action::TabHome(ws, tab) => engine(app).reload_home(ws, tab),
-        Action::TabClose(ws, tab) => {
-            let pinned = engine(app).state.ws(ws).and_then(|w| w.tab(tab)).is_some_and(|t| t.pinned);
-            if pinned {
-                return request("confirm-close", ws, Some(tab));
+    let effects = match action {
+        Action::EditWorkspace(workspace_id) => return open_dialog("edit", workspace_id, None),
+        Action::ClearWorkspace(workspace_id) => return open_dialog("confirm-clear", workspace_id, None),
+        Action::RemoveWorkspace(workspace_id) => return open_dialog("confirm-remove", workspace_id, None),
+        Action::SignIn(workspace_id) => return auth::sign_in(app, workspace_id),
+        Action::SignOut(workspace_id) => return auth::sign_out(app, workspace_id, true),
+        Action::ReloadWorkspace(workspace_id) => engine(app).reload_workspace(workspace_id),
+        Action::PinTab(workspace_id, tab_id, pinned) => engine(app).set_pinned(workspace_id, tab_id, pinned),
+        Action::ReloadTab(workspace_id, tab_id) => engine(app).reload_tab(workspace_id, tab_id),
+        Action::ReloadTabHome(workspace_id, tab_id) => engine(app).reload_home(workspace_id, tab_id),
+        Action::CloseTab(workspace_id, tab_id) => {
+            if is_pinned(app, workspace_id, tab_id) {
+                return open_dialog("confirm-close", workspace_id, Some(tab_id));
             }
-            engine(app).close_tab(ws, tab)
+            engine(app).close_tab(workspace_id, tab_id)
         }
-        Action::OpenApp(ws, app_id) => engine(app).open_app_from_menu(ws, &app_id),
-        Action::OpenHome(ws) => engine(app).open_home(ws),
+        Action::OpenApp(workspace_id, app_id) => engine(app).open_app_from_menu(workspace_id, &app_id),
+        Action::OpenHome(workspace_id) => engine(app).open_home(workspace_id),
     };
-    run(app, fx);
+    run(app, effects);
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn action_ids_round_trip() {
-        let (w, t) = (Uuid::new_v4(), Uuid::new_v4());
-        let all = [
-            Action::WsRename(w),
-            Action::WsReload(w),
-            Action::WsClear(w),
-            Action::WsRemove(w),
-            Action::TabPin(w, t, true),
-            Action::TabPin(w, t, false),
-            Action::TabReload(w, t),
-            Action::TabHome(w, t),
-            Action::TabClose(w, t),
-            Action::OpenApp(w, "spreed".into()),
-            Action::OpenHome(w),
-        ];
-        for a in all {
-            assert_eq!(Action::parse(&a.id()), Some(a.clone()), "{}", a.id());
-        }
-        assert_eq!(Action::parse("quit"), None);
-        assert_eq!(Action::parse("ws-rename|not-a-uuid"), None);
-    }
-}
+#[path = "../tests/unit/menus.rs"]
+mod tests;
