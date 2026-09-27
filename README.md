@@ -35,6 +35,12 @@ macOS 14 or later, Windows 10/11 (WebView2), or Linux with WebKitGTK 4.1.
 
 Requires Node 22 and Rust (stable).
 
+On Linux, install the GTK/WebKit dev packages first (Debian/Ubuntu):
+
+```bash
+sudo apt update && sudo apt install -y libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+```
+
 ```bash
 npm ci
 npm run tauri dev
