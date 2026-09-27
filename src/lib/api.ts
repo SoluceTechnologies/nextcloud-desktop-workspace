@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { MenuAnchor } from './menuAnchor';
 import type { AppState, Appearance } from './types';
 
 export const api = {
@@ -18,8 +19,9 @@ export const api = {
   setTheme: (theme: Appearance) => invoke<void>('set_theme', { theme }),
   setWorkspaceIcon: (workspaceId: string, icon: string | null) =>
     invoke<void>('set_workspace_icon', { workspaceId, icon }),
-  workspaceMenu: (workspaceId: string) => invoke<void>('workspace_menu', { workspaceId }),
-  tabMenu: (workspaceId: string, tabId: string) => invoke<void>('tab_menu', { workspaceId, tabId }),
-  appsMenu: (workspaceId: string) => invoke<void>('apps_menu', { workspaceId }),
+  workspaceMenu: (workspaceId: string, at: MenuAnchor) => invoke<void>('workspace_menu', { workspaceId, ...at }),
+  tabMenu: (workspaceId: string, tabId: string, at: MenuAnchor) =>
+    invoke<void>('tab_menu', { workspaceId, tabId, ...at }),
+  appsMenu: (workspaceId: string, at: MenuAnchor) => invoke<void>('apps_menu', { workspaceId, ...at }),
   revealDownload: (path: string) => invoke<void>('reveal_download', { path }),
 };

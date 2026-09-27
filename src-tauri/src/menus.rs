@@ -2,7 +2,7 @@ use crate::auth;
 use crate::runtime::{engine, run};
 use serde::Serialize;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
-use tauri::{AppHandle, Emitter, Manager, Wry};
+use tauri::{AppHandle, Emitter, LogicalPosition, Manager, Wry};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -72,9 +72,29 @@ fn menu_item(app: &AppHandle, action: Action, text: &str) -> tauri::Result<MenuI
     MenuItem::with_id(app, action.id(), text, true, None::<&str>)
 }
 
-fn popup(app: &AppHandle, items: &[&dyn IsMenuItem<Wry>]) -> tauri::Result<()> {
+fn popup(app: &AppHandle, at: LogicalPosition<f64>, items: &[&dyn IsMenuItem<Wry>]) -> tauri::Result<()> {
     let Some(window) = app.get_window("main") else { return Ok(()) };
-    window.popup_menu(&Menu::with_items(app, items)?)
+    let menu = Menu::with_items(app, items)?;
+    // Wayland exposes no global pointer position, so GTK can't place a menu "at the cursor".
+    #[cfg(target_os = "linux")]
+    return window.popup_menu_at(&menu, in_decorated_window(&window, at));
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = at;
+        window.popup_menu(&menu)
+    }
+}
+
+// Menus are placed relative to the whole GTK window surface, which with client-side
+// decorations also holds the shadow and header bar above/left of the webview area.
+#[cfg(target_os = "linux")]
+fn in_decorated_window(window: &tauri::Window, at: LogicalPosition<f64>) -> LogicalPosition<f64> {
+    use gtk::prelude::WidgetExt;
+    let (Ok(gtk_window), Ok(content)) = (window.gtk_window(), window.default_vbox()) else { return at };
+    match content.translate_coordinates(&gtk_window, 0, 0) {
+        Some((dx, dy)) => LogicalPosition::new(at.x + f64::from(dx), at.y + f64::from(dy)),
+        None => at,
+    }
 }
 
 fn is_pinned(app: &AppHandle, workspace_id: Uuid, tab_id: Uuid) -> bool {
@@ -85,7 +105,7 @@ fn is_pinned(app: &AppHandle, workspace_id: Uuid, tab_id: Uuid) -> bool {
         .is_some_and(|tab| tab.pinned)
 }
 
-pub fn popup_workspace(app: &AppHandle, workspace_id: Uuid) -> tauri::Result<()> {
+pub fn popup_workspace(app: &AppHandle, workspace_id: Uuid, at: LogicalPosition<f64>) -> tauri::Result<()> {
     let edit = menu_item(app, Action::EditWorkspace(workspace_id), "Edit workspace…")?;
     let reload = menu_item(app, Action::ReloadWorkspace(workspace_id), "Reload")?;
     let clear = menu_item(app, Action::ClearWorkspace(workspace_id), "Clear browsing data…")?;
@@ -96,20 +116,20 @@ pub fn popup_workspace(app: &AppHandle, workspace_id: Uuid) -> tauri::Result<()>
     };
     let separator = PredefinedMenuItem::separator(app)?;
     let remove = menu_item(app, Action::RemoveWorkspace(workspace_id), "Remove workspace…")?;
-    popup(app, &[&edit, &reload, &clear, &session, &separator, &remove])
+    popup(app, at, &[&edit, &reload, &clear, &session, &separator, &remove])
 }
 
-pub fn popup_tab(app: &AppHandle, workspace_id: Uuid, tab_id: Uuid) -> tauri::Result<()> {
+pub fn popup_tab(app: &AppHandle, workspace_id: Uuid, tab_id: Uuid, at: LogicalPosition<f64>) -> tauri::Result<()> {
     let pinned = is_pinned(app, workspace_id, tab_id);
     let pin = menu_item(app, Action::PinTab(workspace_id, tab_id, !pinned), if pinned { "Unpin" } else { "Pin" })?;
     let reload = menu_item(app, Action::ReloadTab(workspace_id, tab_id), "Reload")?;
     let home = menu_item(app, Action::ReloadTabHome(workspace_id, tab_id), "Reload at app home")?;
     let separator = PredefinedMenuItem::separator(app)?;
     let close = menu_item(app, Action::CloseTab(workspace_id, tab_id), "Close tab")?;
-    popup(app, &[&pin, &reload, &home, &separator, &close])
+    popup(app, at, &[&pin, &reload, &home, &separator, &close])
 }
 
-pub fn popup_apps(app: &AppHandle, workspace_id: Uuid) -> tauri::Result<()> {
+pub fn popup_apps(app: &AppHandle, workspace_id: Uuid, at: LogicalPosition<f64>) -> tauri::Result<()> {
     let (apps, open_apps): (Vec<(String, String)>, Vec<String>) = {
         let engine = engine(app);
         let Some(workspace) = engine.state.workspace(workspace_id) else { return Ok(()) };
@@ -120,7 +140,7 @@ pub fn popup_apps(app: &AppHandle, workspace_id: Uuid) -> tauri::Result<()> {
     };
     if apps.is_empty() {
         let home = menu_item(app, Action::OpenHome(workspace_id), "Open home page")?;
-        return popup(app, &[&home]);
+        return popup(app, at, &[&home]);
     }
     let items = apps
         .iter()
@@ -130,7 +150,7 @@ pub fn popup_apps(app: &AppHandle, workspace_id: Uuid) -> tauri::Result<()> {
         })
         .collect::<tauri::Result<Vec<_>>>()?;
     let references: Vec<&dyn IsMenuItem<Wry>> = items.iter().map(|item| item as &dyn IsMenuItem<Wry>).collect();
-    popup(app, &references)
+    popup(app, at, &references)
 }
 
 pub fn on_event(app: &AppHandle, id: &str) {
