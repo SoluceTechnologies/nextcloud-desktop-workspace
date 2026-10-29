@@ -25,6 +25,8 @@ fn main() {
             "nc_report_location",
             "nc_report_meta",
             "nc_report_fullscreen",
+            "nc_report_media_support",
+            "open_in_browser",
         ]),
     ))
     .expect("failed to run tauri-build");
