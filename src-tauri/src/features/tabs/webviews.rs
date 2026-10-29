@@ -101,7 +101,7 @@ pub fn create(
     loading(app, tab_id, true);
     #[cfg(target_os = "linux")]
     {
-        crate::features::media::linux::enable(&webview);
+        crate::features::media::linux::configure(&webview);
         crate::features::tabs::web_process::watch(app, &webview, tab_id);
         downloads::linux::watch(app, &webview);
         webview.navigate(url)?;
