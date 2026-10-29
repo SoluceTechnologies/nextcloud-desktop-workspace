@@ -29,3 +29,25 @@ fn glib_debug_is_trace_and_critical_is_error() {
     assert_eq!(glib_level(glib::LogLevel::Critical), log::Level::Error);
     assert_eq!(glib_level(glib::LogLevel::Warning), log::Level::Warn);
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn glib_warnings_reach_the_log() {
+    use std::sync::Mutex;
+    static LINES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    struct Capture;
+    impl log::Log for Capture {
+        fn enabled(&self, _: &log::Metadata) -> bool {
+            true
+        }
+        fn log(&self, record: &log::Record) {
+            LINES.lock().unwrap().push(format!("{} {}", record.target(), record.args()));
+        }
+        fn flush(&self) {}
+    }
+    log::set_logger(&Capture).unwrap();
+    log::set_max_level(log::LevelFilter::Trace);
+    forward_glib_logs();
+    glib::g_warning!("ncw-test", "bridge works");
+    assert!(LINES.lock().unwrap().contains(&"glib [ncw-test] bridge works".to_string()));
+}
