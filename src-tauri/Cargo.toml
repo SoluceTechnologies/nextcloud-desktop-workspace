@@ -57,4 +57,4 @@ tauri-runtime-wry = { path = "vendor/tauri-runtime-wry" }
 codegen-units = 1
 lto = true
 opt-level = 3
-strip = true
+strip = "debuginfo"
