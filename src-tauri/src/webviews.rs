@@ -83,7 +83,10 @@ pub fn create(
     webview.hide()?;
     loading(app, tab_id, true);
     #[cfg(target_os = "linux")]
-    crate::media::enable(&webview);
+    {
+        crate::media::enable(&webview);
+        crate::web_process::watch(app, &webview, tab_id);
+    }
     Ok(())
 }
 

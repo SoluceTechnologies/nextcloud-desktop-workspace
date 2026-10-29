@@ -20,6 +20,8 @@ mod session;
 mod signed_load;
 mod store;
 mod urls;
+#[cfg(target_os = "linux")]
+mod web_process;
 mod webviews;
 mod window;
 

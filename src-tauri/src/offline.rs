@@ -20,7 +20,11 @@ static NEXT_LOAD: AtomicU64 = AtomicU64::new(0);
 struct TabOffline {
     tab_id: Uuid,
     offline: bool,
+    reason: &'static str,
 }
+
+const UNREACHABLE: &str = "unreachable";
+const CRASHED: &str = "crashed";
 
 fn unreported_loads() -> MutexGuard<'static, HashMap<Uuid, u64>> {
     static LOADS: LazyLock<Mutex<HashMap<Uuid, u64>>> = LazyLock::new(Default::default);
@@ -47,7 +51,7 @@ pub fn watch_load(app: &AppHandle, tab_id: Uuid) {
             return;
         }
         run(&app, effects);
-        let _ = app.emit_to("shell", "tab-offline", TabOffline { tab_id, offline: true });
+        let _ = app.emit_to("shell", "tab-offline", TabOffline { tab_id, offline: true, reason: UNREACHABLE });
         while engine(&app).is_offline(tab_id) {
             thread::sleep(RETRY_INTERVAL);
             if is_reachable(&base) {
@@ -66,8 +70,24 @@ pub fn retry(app: &AppHandle, tab_id: Uuid) {
     if effects.is_empty() {
         return;
     }
-    let _ = app.emit_to("shell", "tab-offline", TabOffline { tab_id, offline: false });
+    let _ = app.emit_to("shell", "tab-offline", TabOffline { tab_id, offline: false, reason: UNREACHABLE });
     run(app, effects);
+}
+
+pub fn crashed(app: &AppHandle, tab_id: Uuid, reason: &str) {
+    log::error!("web process of tab {tab_id} {reason}");
+    let effects = {
+        let mut engine = engine(app);
+        if !engine.is_live(tab_id) {
+            return;
+        }
+        engine.set_offline(tab_id)
+    };
+    if effects.is_empty() {
+        return;
+    }
+    run(app, effects);
+    let _ = app.emit_to("shell", "tab-offline", TabOffline { tab_id, offline: true, reason: CRASHED });
 }
 
 fn is_reachable(base: &Url) -> bool {
