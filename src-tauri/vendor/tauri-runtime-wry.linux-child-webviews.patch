@@ -1,18 +1,18 @@
 diff -ruN a/Cargo.toml b/Cargo.toml
---- a/Cargo.toml	2026-10-29 14:49:47.689436773 +0100
-+++ b/Cargo.toml	2026-10-29 14:49:47.691814556 +0100
-@@ -149,3 +149,7 @@
-     "Win32_Foundation",
-     "Win32_Graphics_Dwm",
- ]
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -151,3 +151,7 @@
+ collapsible_if = "allow"
+ or_fun_call = "warn"
+ redundant_clone = "warn"
 +
 +# Vendored copy: silence upstream lints that crates.io builds hide via --cap-lints.
 +[lints.rust]
 +unused_unsafe = "allow"
 diff -ruN a/src/lib.rs b/src/lib.rs
---- a/src/lib.rs	2026-10-29 14:49:47.689635304 +0100
-+++ b/src/lib.rs	2026-10-29 14:49:47.692204514 +0100
-@@ -3829,18 +3829,18 @@
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -3727,18 +3727,18 @@
                let scale_factor = window.scale_factor();
                let size = bounds.size.to_logical::<f32>(scale_factor);
                let position = bounds.position.to_logical::<f32>(scale_factor);
@@ -34,7 +34,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
              Ok(mut bounds) => {
                bounds.size = size;
  
-@@ -3848,12 +3848,12 @@
+@@ -3746,12 +3746,12 @@
                let size = size.to_logical::<f32>(scale_factor);
  
                if let Some(b) = &mut *webview.bounds.lock().unwrap() {
@@ -49,7 +49,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
                  log::error!("failed to set webview size: {e}");
                }
              }
-@@ -3861,7 +3861,7 @@
+@@ -3759,7 +3759,7 @@
                log::error!("failed to get webview bounds: {e}");
              }
            },
@@ -58,7 +58,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
              Ok(mut bounds) => {
                bounds.position = position;
  
-@@ -3869,12 +3869,12 @@
+@@ -3767,12 +3767,12 @@
                let position = position.to_logical::<f32>(scale_factor);
  
                if let Some(b) = &mut *webview.bounds.lock().unwrap() {
@@ -73,7 +73,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
                  log::error!("failed to set webview position: {e}");
                }
              }
-@@ -3969,10 +3969,10 @@
+@@ -3867,10 +3867,10 @@
                log::error!("failed to focus webview: {e}");
              }
            }
@@ -86,7 +86,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
                *webview.bounds.lock().unwrap() = if auto_resize {
                  let size = bounds.size.to_logical::<f32>(scale_factor);
                  let position = bounds.position.to_logical::<f32>(scale_factor);
-@@ -4324,17 +4324,17 @@
+@@ -4270,17 +4270,17 @@
                }
              }
            }
@@ -107,7 +107,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
                      position: LogicalPosition::new(size.width * b.x_rate, size.height * b.y_rate)
                        .into(),
                      size: LogicalSize::new(size.width * b.width_rate, size.height * b.height_rate)
-@@ -4745,6 +4745,75 @@
+@@ -4666,6 +4666,75 @@
    height_rate: f32,
  }
  
@@ -183,8 +183,8 @@ diff -ruN a/src/lib.rs b/src/lib.rs
  fn create_webview<T: UserEvent>(
    kind: WebviewKind,
    window: &Window,
-@@ -4967,6 +5036,10 @@
-       webview_builder.with_document_title_changed_handler(document_title_changed_handler)
+@@ -4896,6 +4965,10 @@
+     });
    }
  
 +  // Only the GTK child-webview path reads it (see place_in_layout).
@@ -194,7 +194,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
    let webview_bounds = if let Some(bounds) = webview_attributes.bounds {
      let bounds: RectWrapper = bounds.into();
      let bounds = bounds.0;
-@@ -4976,8 +5049,12 @@
+@@ -4905,8 +4978,12 @@
      let size = bounds.size.to_logical::<f32>(scale_factor);
  
      webview_builder = webview_builder.with_bounds(bounds);
@@ -208,7 +208,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
  
      if webview_attributes.auto_resize {
        Some(WebviewBounds {
-@@ -4992,10 +5069,15 @@
+@@ -4921,10 +4998,15 @@
    } else {
      #[cfg(feature = "unstable")]
      {
@@ -227,7 +227,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
        Some(WebviewBounds {
          x_rate: 0.,
          y_rate: 0.,
-@@ -5232,9 +5314,25 @@
+@@ -5169,9 +5251,25 @@
        target_os = "android"
      )))]
      WebviewKind::WindowChild => {
@@ -255,14 +255,14 @@ diff -ruN a/src/lib.rs b/src/lib.rs
      }
      #[cfg(any(
        target_os = "windows",
-@@ -5424,6 +5522,27 @@
+@@ -5312,6 +5410,27 @@
    window.inner_size()
  }
  
 +// tao reports the configure-event size on Linux, which with client-side
 +// decorations includes the header bar and the window shadow. GtkWindow::size
 +// excludes both, i.e. it is the area child webviews actually get.
-+fn content_size(window: &Window) -> TaoPhysicalSize<u32> {
++fn content_size(window: &Window) -> PhysicalSize<u32> {
 +  #[cfg(any(
 +    target_os = "linux",
 +    target_os = "dragonfly",
@@ -274,7 +274,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
 +    use gtk::prelude::GtkWindowExt;
 +    let (width, height) = window.gtk_window().size();
 +    if width > 0 && height > 0 {
-+      return TaoLogicalSize::new(width as u32, height as u32).to_physical(window.scale_factor());
++      return LogicalSize::new(width as u32, height as u32).to_physical(window.scale_factor());
 +    }
 +  }
 +  window.inner_size()
@@ -283,10 +283,10 @@ diff -ruN a/src/lib.rs b/src/lib.rs
  #[cfg(not(target_os = "macos"))]
  #[allow(unused_variables)]
  fn inner_size(
-@@ -5431,7 +5550,7 @@
+@@ -5319,7 +5438,7 @@
    webviews: &[WebviewWrapper],
    has_children: bool,
- ) -> TaoPhysicalSize<u32> {
+ ) -> PhysicalSize<u32> {
 -  window.inner_size()
 +  content_size(window)
  }
