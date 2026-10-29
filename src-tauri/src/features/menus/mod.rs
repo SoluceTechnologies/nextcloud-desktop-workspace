@@ -1,4 +1,6 @@
-use crate::auth;
+pub mod commands;
+
+use crate::features::auth;
 use crate::runtime::{engine, run};
 use serde::Serialize;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
@@ -181,5 +183,5 @@ pub fn on_event(app: &AppHandle, id: &str) {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/menus.rs"]
+#[path = "../../../tests/unit/features/menus.rs"]
 mod tests;

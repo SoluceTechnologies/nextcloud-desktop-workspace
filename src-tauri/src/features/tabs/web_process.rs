@@ -1,4 +1,4 @@
-use crate::offline;
+use crate::features::tabs::offline;
 use tauri::{AppHandle, Webview};
 use uuid::Uuid;
 use webkit2gtk::{WebProcessTerminationReason, WebViewExt};
@@ -22,5 +22,5 @@ fn crash_reason(reason: WebProcessTerminationReason) -> Option<&'static str> {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/web_process.rs"]
+#[path = "../../../tests/unit/features/tabs/web_process.rs"]
 mod tests;

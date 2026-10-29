@@ -1,5 +1,5 @@
 use super::*;
-use crate::model::Workspace;
+use crate::domain::model::Workspace;
 
 #[test]
 fn missing_file_gives_empty_state() {

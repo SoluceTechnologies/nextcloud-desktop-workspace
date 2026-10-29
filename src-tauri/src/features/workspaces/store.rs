@@ -1,4 +1,4 @@
-use crate::model::AppState;
+use crate::domain::model::AppState;
 use std::fmt::Display;
 use std::fs;
 use std::io::ErrorKind;
@@ -31,5 +31,5 @@ pub fn save(path: &Path, state: &AppState) -> std::io::Result<()> {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/store.rs"]
+#[path = "../../../tests/unit/features/workspaces/store.rs"]
 mod tests;

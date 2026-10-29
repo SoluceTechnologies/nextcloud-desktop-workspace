@@ -1,5 +1,5 @@
-use crate::model::{AppState, AUTH};
-use crate::urls::{find_workspace, join, relative_path};
+use crate::domain::model::{AppState, AUTH};
+use crate::domain::urls::{find_workspace, join, relative_path};
 use url::Url;
 use uuid::Uuid;
 
@@ -65,5 +65,5 @@ pub fn home_url(base: &Url, app_id: &str) -> Url {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/router.rs"]
+#[path = "../../tests/unit/domain/router.rs"]
 mod tests;

@@ -1,6 +1,9 @@
-use crate::keychain::{self, Credentials};
+use crate::domain::urls;
+use crate::features::auth::keychain::{self, Credentials};
+use crate::features::auth;
 use crate::runtime::{engine, notice, run};
-use crate::{auth, diagnostics, http, urls};
+use crate::shared::diagnostics;
+use crate::shared::http;
 use serde::Deserialize;
 use std::cmp::Reverse;
 use std::collections::HashMap;
@@ -139,5 +142,5 @@ fn show_banner(app: &AppHandle, title: &str, body: &str) {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/notifications.rs"]
+#[path = "../../tests/unit/features/notifications.rs"]
 mod tests;

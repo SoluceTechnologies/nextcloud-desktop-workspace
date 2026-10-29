@@ -1,3 +1,5 @@
+pub mod commands;
+
 use percent_encoding::percent_decode_str;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -76,5 +78,5 @@ pub fn unique_path(directory: &Path, name: &str) -> PathBuf {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/downloads.rs"]
+#[path = "../../../tests/unit/features/downloads.rs"]
 mod tests;

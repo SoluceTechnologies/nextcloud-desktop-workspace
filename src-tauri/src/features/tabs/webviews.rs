@@ -1,7 +1,11 @@
-use crate::engine::Effect;
-use crate::router::{self, Route};
+use crate::domain::engine::Effect;
+use crate::domain::router::{self, Route};
+use crate::features::auth;
+use crate::features::downloads;
+use crate::features::tabs::offline;
+use crate::features::workspaces::profiles;
 use crate::runtime::{engine, run, EffectResult};
-use crate::{auth, downloads, offline, profiles, window};
+use crate::window;
 use std::collections::HashSet;
 use tauri::ipc::CapabilityBuilder;
 use tauri::utils::acl::RemoteUrlPattern;
@@ -90,8 +94,8 @@ pub fn create(
     loading(app, tab_id, true);
     #[cfg(target_os = "linux")]
     {
-        crate::media::enable(&webview);
-        crate::web_process::watch(app, &webview, tab_id);
+        crate::features::media::enable(&webview);
+        crate::features::tabs::web_process::watch(app, &webview, tab_id);
     }
     Ok(())
 }
@@ -200,5 +204,5 @@ fn safari_user_agent() -> Option<&'static str> {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/webviews.rs"]
+#[path = "../../../tests/unit/features/tabs/webviews.rs"]
 mod tests;

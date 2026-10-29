@@ -1,4 +1,4 @@
-use crate::model::AppState;
+use crate::domain::model::AppState;
 use url::Url;
 use uuid::Uuid;
 
@@ -61,5 +61,5 @@ pub fn join(base: &Url, relative: &str) -> Url {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/urls.rs"]
+#[path = "../../tests/unit/domain/urls.rs"]
 mod tests;

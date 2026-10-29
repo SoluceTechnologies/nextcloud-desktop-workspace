@@ -1,6 +1,9 @@
-use crate::model::Appearance;
+#[cfg(target_os = "macos")]
+pub mod mouse_tracking;
+
+use crate::domain::model::Appearance;
+use crate::features::tabs::webviews;
 use crate::runtime::{engine, EffectResult};
-use crate::webviews;
 use std::error::Error;
 use std::sync::Mutex;
 use tauri::window::{Color, WindowBuilder};
@@ -64,7 +67,7 @@ pub fn apply_theme(app: &AppHandle, appearance: Appearance) -> EffectResult {
 // runtime under e.g. Yaru-dark kept everything dark.
 #[cfg(target_os = "linux")]
 mod gtk_theme {
-    use crate::model::Appearance;
+    use crate::domain::model::Appearance;
     use gtk::prelude::GtkSettingsExt;
     use std::sync::OnceLock;
 

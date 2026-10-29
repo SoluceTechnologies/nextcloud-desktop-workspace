@@ -1,4 +1,4 @@
-use crate::urls;
+use crate::domain::urls;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use url::Url;
@@ -101,5 +101,5 @@ pub fn decide(
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/session.rs"]
+#[path = "../../tests/unit/domain/session.rs"]
 mod tests;

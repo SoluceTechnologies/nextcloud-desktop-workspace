@@ -1,6 +1,7 @@
-use crate::model::AppState;
+use crate::domain::model::AppState;
+use crate::features::tabs::webviews;
 use crate::runtime::EffectResult;
-use crate::{webviews, window};
+use crate::window;
 use std::collections::HashSet;
 use std::error::Error;
 use tauri::webview::WebviewBuilder;

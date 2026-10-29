@@ -1,7 +1,13 @@
-use crate::keychain::{self, Credentials};
+pub mod keychain;
+pub mod signed_load;
+
+use keychain::Credentials;
+use crate::domain::session::{self, Decision, RetryBudget};
+use crate::domain::urls;
+use crate::features::tabs::webviews;
 use crate::runtime::{engine, notice, run};
-use crate::session::{self, Decision, RetryBudget};
-use crate::{diagnostics, http, signed_load, urls, webviews};
+use crate::shared::diagnostics;
+use crate::shared::http;
 use serde::Deserialize;
 use std::sync::{LazyLock, Mutex, MutexGuard};
 use std::thread;
