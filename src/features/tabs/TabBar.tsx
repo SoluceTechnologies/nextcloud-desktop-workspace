@@ -8,10 +8,22 @@ import './TabBar.css';
 
 const MIDDLE_BUTTON = 1;
 
-export function TabBar(props: { workspace: Workspace | null; loadingTabs: Set<string>; notice: ReactNode }) {
-  const { workspace, loadingTabs, notice } = props;
+export function TabBar(props: {
+  workspace: Workspace | null;
+  loadingTabs: Set<string>;
+  notice: ReactNode;
+  downloads: ReactNode;
+}) {
+  const { workspace, loadingTabs, notice, downloads } = props;
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  if (!workspace) return <header className="tabbar">{notice}</header>;
+  if (!workspace) {
+    return (
+      <header className="tabbar">
+        {notice}
+        {downloads}
+      </header>
+    );
+  }
   const workspaceId = workspace.id;
   const tabIds = workspace.tabs.map((tab) => tab.id);
   return (
@@ -85,6 +97,7 @@ export function TabBar(props: { workspace: Workspace | null; loadingTabs: Set<st
         <PlusIcon size={16} />
       </button>
       {notice}
+      {downloads}
       {workspace.activeTabId && loadingTabs.has(workspace.activeTabId) && (
         <div className="progress" role="progressbar" aria-label="Loading page" />
       )}

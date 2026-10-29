@@ -37,6 +37,8 @@ pub fn run() {
             menus::commands::tab_menu,
             menus::commands::apps_menu,
             downloads::commands::reveal_download,
+            downloads::commands::list_downloads,
+            downloads::commands::cancel_download,
             tabs::commands::nc_report_location,
             tabs::commands::nc_report_meta,
             tabs::commands::nc_report_fullscreen,

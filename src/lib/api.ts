@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { MenuAnchor } from './menuAnchor';
-import type { AppState, Appearance } from './types';
+import type { AppState, Appearance, Download } from './types';
 
 export const api = {
   getState: () => invoke<AppState>('get_state'),
@@ -24,4 +24,6 @@ export const api = {
     invoke<void>('tab_menu', { workspaceId, tabId, ...at }),
   appsMenu: (workspaceId: string, at: MenuAnchor) => invoke<void>('apps_menu', { workspaceId, ...at }),
   revealDownload: (path: string) => invoke<void>('reveal_download', { path }),
+  listDownloads: () => invoke<Download[]>('list_downloads'),
+  cancelDownload: (id: string) => invoke<void>('cancel_download', { id }),
 };
