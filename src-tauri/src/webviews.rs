@@ -41,6 +41,12 @@ pub fn is_content(label: &str) -> bool {
     label.starts_with(CONTENT_PREFIX)
 }
 
+// The only constructor for webviews: devtools follow the build type even if the
+// `devtools` cargo feature is ever enabled, which would otherwise turn them on in release.
+pub fn builder(label: impl Into<String>, url: WebviewUrl) -> WebviewBuilder<tauri::Wry> {
+    WebviewBuilder::new(label, url).devtools(cfg!(debug_assertions))
+}
+
 pub fn with_webview(
     app: &AppHandle,
     workspace_id: Uuid,
@@ -69,7 +75,7 @@ pub fn create(
         grant_bridge(app, workspace_id, &url)?;
         bridged_workspaces.insert(workspace_id);
     }
-    let builder = WebviewBuilder::new(&label, WebviewUrl::External(url))
+    let builder = builder(&label, WebviewUrl::External(url))
         .background_throttling(BackgroundThrottlingPolicy::Throttle)
         .initialization_script(BRIDGE_JS);
     let builder = with_handlers(app, builder, workspace_id, tab_id);

@@ -3,7 +3,6 @@ use crate::runtime::{engine, EffectResult};
 use crate::webviews;
 use std::error::Error;
 use std::sync::Mutex;
-use tauri::webview::WebviewBuilder;
 use tauri::window::{Color, WindowBuilder};
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Theme, Webview, WebviewUrl, Window, WindowEvent};
 
@@ -31,7 +30,7 @@ pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
     gtk_theme::remember_system_theme();
     let window = builder.build()?;
     window.add_child(
-        WebviewBuilder::new("shell", WebviewUrl::App("index.html".into())).auto_resize(),
+        webviews::builder("shell", WebviewUrl::App("index.html".into())).auto_resize(),
         LogicalPosition::new(0.0, 0.0),
         logical_size(&window)?,
     )?;

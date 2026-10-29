@@ -61,7 +61,7 @@ fn clear_browsing_data(app: &AppHandle, workspace_id: Uuid) -> EffectResult {
         webview.clear_all_browsing_data()?;
         return Ok(());
     }
-    let blank = WebviewBuilder::new(format!("{prefix}clear"), WebviewUrl::External("about:blank".parse()?));
+    let blank = webviews::builder(format!("{prefix}clear"), WebviewUrl::External("about:blank".parse()?));
     let temporary = window.add_child(
         with_profile(app, blank, workspace_id)?,
         LogicalPosition::new(0.0, 0.0),
