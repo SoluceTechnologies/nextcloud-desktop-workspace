@@ -13,7 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2.11", features = ["unstable"] }
+tauri = { version = "2.12", features = ["unstable"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -24,7 +24,7 @@ tauri-plugin-notification = "2"
 base64 = "0.22"
 ureq = { version = "3", features = ["json", "platform-verifier"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "async-secret-service", "async-io", "crypto-rust"] }
-tauri-plugin-log = "~2.9"
+tauri-plugin-log = "2.10"
 log = "0.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -32,8 +32,8 @@ objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSGeometry", "NSString", "NSURL", "NSURLRequest"] }
 
 [target.'cfg(windows)'.dependencies]
-webview2-com = "0.38"
-windows-core = "0.61"
+webview2-com = "0.39"
+windows-core = "0.62"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk = { version = "2.0", features = ["v2_38"] }
@@ -46,10 +46,12 @@ tempfile = "3"
 # Linux only: upstream child-webview positioning is broken on GTK (webviews get
 # packed into a vbox and stack instead of overlaying at their set position/size).
 # See https://github.com/tauri-apps/tauri/issues/10420 and
-# https://github.com/tauri-apps/tauri/issues/16132. Vendored 2.11.4 with child
+# https://github.com/tauri-apps/tauri/issues/16132. Vendored 2.12.3 with child
 # webviews mounted in a gtk::Layout and positioned via move_/set_size_request
 # (see place_in_layout in vendor/tauri-runtime-wry/src/lib.rs). Linux/BSD only;
 # other platforms compile the stock code paths. Remove once fixed upstream.
+# To bump: unpack the new crates.io release into vendor/tauri-runtime-wry and
+# apply vendor/tauri-runtime-wry.linux-child-webviews.patch with `patch -p1`.
 [patch.crates-io]
 tauri-runtime-wry = { path = "vendor/tauri-runtime-wry" }
 
