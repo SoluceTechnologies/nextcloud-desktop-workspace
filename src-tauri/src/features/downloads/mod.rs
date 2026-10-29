@@ -1,23 +1,31 @@
 pub mod commands;
 #[cfg(target_os = "linux")]
 pub mod linux;
+pub mod registry;
 
 use percent_encoding::percent_decode_str;
+use registry::{Download, Registry, CANCELLED};
 use serde::Serialize;
 #[cfg(not(target_os = "linux"))]
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-#[cfg(not(target_os = "linux"))]
-use std::sync::{LazyLock, Mutex};
+use std::sync::{LazyLock, Mutex, MutexGuard};
+use std::time::Instant;
 #[cfg(not(target_os = "linux"))]
 use tauri::webview::DownloadEvent;
 use tauri::{AppHandle, Emitter, Manager};
 use url::Url;
+use uuid::Uuid;
 
 const FORBIDDEN_CHARACTERS: [char; 9] = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
 
 #[cfg(not(target_os = "linux"))]
-static DESTINATIONS: LazyLock<Mutex<HashMap<String, PathBuf>>> = LazyLock::new(Default::default);
+static DESTINATIONS: LazyLock<Mutex<HashMap<String, (PathBuf, Uuid)>>> = LazyLock::new(Default::default);
+
+fn registry() -> MutexGuard<'static, Registry> {
+    static REGISTRY: LazyLock<Mutex<Registry>> = LazyLock::new(Default::default);
+    REGISTRY.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 #[derive(Clone, Serialize)]
 struct Finished {
@@ -31,12 +39,15 @@ pub fn handle(app: &AppHandle, event: DownloadEvent<'_>) -> bool {
     match event {
         DownloadEvent::Requested { url, destination } => {
             let path = prepare_destination(&download_directory(app), &suggested_name(destination, &url));
-            destinations.insert(url.to_string(), path.clone());
+            let id = Uuid::new_v4();
+            started(app, id, &path, false);
+            destinations.insert(url.to_string(), (path.clone(), id));
             *destination = path;
         }
         DownloadEvent::Finished { url, path, success } => {
-            let chosen = destinations.remove(url.as_str());
-            finished(app, path.or(chosen), success.then_some(()).ok_or_else(|| "the download failed".into()));
+            let (chosen, id) = destinations.remove(url.as_str()).unzip();
+            let outcome = success.then_some(()).ok_or_else(|| "the download failed".into());
+            finished(app, id, path.or(chosen), outcome);
         }
         _ => {}
     }
@@ -74,7 +85,37 @@ pub fn discard_partial(path: &Path) {
     }
 }
 
-pub fn finished(app: &AppHandle, path: Option<PathBuf>, outcome: Result<(), String>) {
+pub fn list() -> Vec<Download> {
+    registry().list()
+}
+
+pub fn started(app: &AppHandle, id: Uuid, path: &Path, cancellable: bool) {
+    let file_name = path.file_name().map_or_else(|| "download".into(), |name| name.to_string_lossy().into_owned());
+    let download = registry().start(id, file_name, Some(path.display().to_string()), cancellable, Instant::now());
+    changed(app, &download);
+}
+
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn progressed(app: &AppHandle, id: Uuid, received: u64, total: u64) {
+    let download = registry().progress(id, received, Some(total), Instant::now());
+    if let Some(download) = download {
+        changed(app, &download);
+    }
+}
+
+fn changed(app: &AppHandle, download: &Download) {
+    let _ = app.emit_to("shell", "download-changed", download);
+}
+
+pub fn finished(app: &AppHandle, id: Option<Uuid>, path: Option<PathBuf>, outcome: Result<(), String>) {
+    let download = id.and_then(|id| registry().finish(id, outcome.clone()));
+    if let Some(download) = &download {
+        changed(app, download);
+    }
+    if outcome.as_ref().is_err_and(|reason| reason == CANCELLED) {
+        log::info!("download cancelled");
+        return;
+    }
     let path = path.map(|path| path.display().to_string());
     match &outcome {
         Ok(()) => log::info!("download finished: {}", path.as_deref().unwrap_or("?")),

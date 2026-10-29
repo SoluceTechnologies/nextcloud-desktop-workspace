@@ -13,3 +13,14 @@ export type Workspace = {
 };
 export type Appearance = 'system' | 'light' | 'dark';
 export type AppState = { version: number; workspaces: Workspace[]; activeWorkspaceId: string | null; theme: Appearance };
+export type DownloadState = 'active' | 'completed' | 'failed' | 'cancelled';
+export type Download = {
+  id: string;
+  fileName: string;
+  path: string | null;
+  received: number;
+  total: number | null;
+  state: DownloadState;
+  error: string | null;
+  cancellable: boolean;
+};

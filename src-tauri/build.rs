@@ -19,6 +19,8 @@ fn main() {
             "tab_menu",
             "apps_menu",
             "reveal_download",
+            "list_downloads",
+            "cancel_download",
             "retry_tab",
             "nc_report_location",
             "nc_report_meta",

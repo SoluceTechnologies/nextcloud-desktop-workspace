@@ -23,6 +23,8 @@
     "allow-tab-menu",
     "allow-apps-menu",
     "allow-reveal-download",
+    "allow-list-downloads",
+    "allow-cancel-download",
     "allow-retry-tab"
   ]
 }
