@@ -61,6 +61,8 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             diagnostics::log_startup(&handle);
+            #[cfg(target_os = "linux")]
+            diagnostics::forward_glib_logs();
             let store_path = app.path().app_config_dir()?.join("workspaces.json");
             let (state, notice) = store::load(&store_path);
             let sweep_state = notice.is_none().then(|| state.clone());

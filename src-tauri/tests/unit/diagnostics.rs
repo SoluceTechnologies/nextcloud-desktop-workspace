@@ -21,3 +21,11 @@ fn spawned_panic_does_not_reach_the_caller() {
     });
     assert_eq!(receiver.recv_timeout(Duration::from_secs(1)), Err(mpsc::RecvTimeoutError::Disconnected));
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn glib_debug_is_trace_and_critical_is_error() {
+    assert_eq!(glib_level(glib::LogLevel::Debug), log::Level::Trace);
+    assert_eq!(glib_level(glib::LogLevel::Critical), log::Level::Error);
+    assert_eq!(glib_level(glib::LogLevel::Warning), log::Level::Warn);
+}

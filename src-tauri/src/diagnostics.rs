@@ -95,6 +95,31 @@ pub fn log_startup(app: &AppHandle) {
     }
 }
 
+#[cfg(target_os = "linux")]
+pub fn forward_glib_logs() {
+    glib::log_set_writer_func(|level, fields| {
+        let field = |key: &str| fields.iter().find(|field| field.key() == key).and_then(|field| field.value_str());
+        log::log!(
+            target: "glib",
+            glib_level(level),
+            "[{}] {}",
+            field("GLIB_DOMAIN").unwrap_or("-"),
+            field("MESSAGE").unwrap_or_default()
+        );
+        glib::LogWriterOutput::Handled
+    });
+}
+
+#[cfg(target_os = "linux")]
+fn glib_level(level: glib::LogLevel) -> log::Level {
+    match level {
+        glib::LogLevel::Error | glib::LogLevel::Critical => log::Level::Error,
+        glib::LogLevel::Warning => log::Level::Warn,
+        glib::LogLevel::Message | glib::LogLevel::Info => log::Level::Info,
+        glib::LogLevel::Debug => log::Level::Trace,
+    }
+}
+
 #[cfg(test)]
 #[path = "../tests/unit/diagnostics.rs"]
 mod tests;
