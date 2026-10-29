@@ -78,7 +78,7 @@ fn sweep_data_stores(app: &AppHandle, kept: &HashSet<Uuid>) {
     let identifiers = match tauri::async_runtime::block_on(app.fetch_data_store_identifiers()) {
         Ok(identifiers) => identifiers,
         Err(error) => {
-            eprintln!("[ncw] fetch_data_store_identifiers failed: {error}");
+            log::error!("fetch_data_store_identifiers failed: {error}");
             return;
         }
     };
@@ -87,7 +87,7 @@ fn sweep_data_stores(app: &AppHandle, kept: &HashSet<Uuid>) {
             continue;
         }
         if let Err(error) = tauri::async_runtime::block_on(app.remove_data_store(identifier)) {
-            eprintln!("[ncw] remove_data_store failed: {error}");
+            log::error!("remove_data_store failed: {error}");
         }
     }
 }

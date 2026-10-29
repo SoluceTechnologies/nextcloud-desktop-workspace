@@ -1,5 +1,5 @@
 use crate::runtime::{engine, run};
-use crate::{http, urls};
+use crate::{diagnostics, http, urls};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -31,7 +31,7 @@ pub fn watch_load(app: &AppHandle, tab_id: Uuid) {
     let load = NEXT_LOAD.fetch_add(1, Ordering::Relaxed);
     unreported_loads().insert(tab_id, load);
     let app = app.clone();
-    thread::spawn(move || {
+    diagnostics::spawn("offline-watch", move || {
         thread::sleep(WATCH_DELAY);
         if unreported_loads().get(&tab_id) != Some(&load) {
             return;
