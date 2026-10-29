@@ -24,6 +24,7 @@ struct TabOffline {
 }
 
 const UNREACHABLE: &str = "unreachable";
+#[cfg(target_os = "linux")]
 const CRASHED: &str = "crashed";
 
 fn unreported_loads() -> MutexGuard<'static, HashMap<Uuid, u64>> {
@@ -74,6 +75,7 @@ pub fn retry(app: &AppHandle, tab_id: Uuid) {
     run(app, effects);
 }
 
+#[cfg(target_os = "linux")]
 pub fn crashed(app: &AppHandle, tab_id: Uuid, reason: &str) {
     log::error!("web process of tab {tab_id} {reason}");
     let effects = {
