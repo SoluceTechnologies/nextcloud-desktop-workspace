@@ -54,11 +54,19 @@
     true,
   );
 
+  let mediaSupportReported = false;
+  const reportMediaSupport = () => {
+    if (mediaSupportReported || !/\/(apps\/spreed|call)(\/|$)/.test(location.pathname)) return;
+    mediaSupportReported = true;
+    invoke('nc_report_media_support', { supported: !!window.RTCPeerConnection });
+  };
+
   let lastReported = '';
   const reportLocation = () => {
     if (location.href === lastReported) return;
     lastReported = location.href;
     invoke('nc_report_location', { url: lastReported });
+    reportMediaSupport();
   };
   let reportTimer;
   const reportLocationSoon = () => {

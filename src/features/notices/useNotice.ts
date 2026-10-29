@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTauriEvent } from '@/lib/useTauriEvent';
 
-export type NoticeData = { text: string; path?: string };
+export type NoticeData = { text: string; path?: string; tabId?: string };
 
 const NOTICE_DURATION_MS = 8000;
 
@@ -12,6 +12,9 @@ export function useNotice(): NoticeData | null {
     api.takeNotice().then((text) => text && setNotice({ text }));
   }, []);
   useTauriEvent<string>('notice', (text) => setNotice({ text }));
+  useTauriEvent<{ tabId: string }>('calls-unavailable', ({ tabId }) =>
+    setNotice({ text: 'Calls need WebRTC, which this system’s web engine lacks', tabId }),
+  );
   useTauriEvent<{ path: string | null; success: boolean }>('download-finished', (download) => {
     const fileName = download.path?.split(/[\\/]/).pop() ?? 'file';
     setNotice(

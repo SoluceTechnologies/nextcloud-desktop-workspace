@@ -26,4 +26,5 @@ export const api = {
   revealDownload: (path: string) => invoke<void>('reveal_download', { path }),
   listDownloads: () => invoke<Download[]>('list_downloads'),
   cancelDownload: (id: string) => invoke<void>('cancel_download', { id }),
+  openInBrowser: (tabId: string) => invoke<void>('open_in_browser', { tabId }),
 };

@@ -42,6 +42,8 @@ pub fn run() {
             tabs::commands::nc_report_location,
             tabs::commands::nc_report_meta,
             tabs::commands::nc_report_fullscreen,
+            tabs::commands::nc_report_media_support,
+            tabs::commands::open_in_browser,
         ])
         .on_menu_event(|app, event| menus::on_event(app, event.id().as_ref()))
         .setup(|app| {

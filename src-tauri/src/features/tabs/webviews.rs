@@ -2,6 +2,7 @@ use crate::domain::engine::Effect;
 use crate::domain::router::{self, Route};
 use crate::features::auth;
 use crate::features::downloads;
+use crate::features::media;
 use crate::features::tabs::offline;
 use crate::features::workspaces::profiles;
 use crate::runtime::{engine, run, EffectResult};
@@ -79,7 +80,13 @@ pub fn create(
         grant_bridge(app, workspace_id, &url)?;
         bridged_workspaces.insert(workspace_id);
     }
-    let builder = builder(&label, WebviewUrl::External(url))
+    // Linux configures the WebKit view (media settings, handlers) before its first real
+    // page, so the tab starts blank and navigates once that is queued.
+    #[cfg(target_os = "linux")]
+    let first_url = WebviewUrl::External("about:blank".parse()?);
+    #[cfg(not(target_os = "linux"))]
+    let first_url = WebviewUrl::External(url);
+    let builder = builder(&label, first_url)
         .background_throttling(BackgroundThrottlingPolicy::Throttle)
         .initialization_script(BRIDGE_JS);
     let builder = with_handlers(app, builder, workspace_id, tab_id);
@@ -94,9 +101,10 @@ pub fn create(
     loading(app, tab_id, true);
     #[cfg(target_os = "linux")]
     {
-        crate::features::media::enable(&webview);
+        crate::features::media::linux::enable(&webview);
         crate::features::tabs::web_process::watch(app, &webview, tab_id);
         downloads::linux::watch(app, &webview);
+        webview.navigate(url)?;
     }
     Ok(())
 }
@@ -107,7 +115,8 @@ fn with_handlers(
     workspace_id: Uuid,
     tab_id: Uuid,
 ) -> WebviewBuilder<tauri::Wry> {
-    let (navigation_app, popup_app, title_app, load_app) = (app.clone(), app.clone(), app.clone(), app.clone());
+    let (navigation_app, popup_app, title_app, load_app, permission_app) =
+        (app.clone(), app.clone(), app.clone(), app.clone(), app.clone());
     #[cfg(not(target_os = "linux"))]
     let builder = {
         let download_app = app.clone();
@@ -123,6 +132,9 @@ fn with_handlers(
         .on_document_title_changed(move |_, title| {
             let effects = engine(&title_app).observe_title(tab_id, &title);
             run(&title_app, effects);
+        })
+        .on_permission_request(move |webview, kind| {
+            media::on_permission_request(&permission_app, workspace_id, &webview, kind)
         })
         .on_page_load(move |_, page| match page.event() {
             PageLoadEvent::Started => loading(&load_app, tab_id, true),
@@ -170,7 +182,8 @@ fn grant_bridge(app: &AppHandle, workspace_id: Uuid, url: &Url) -> EffectResult 
             .local(false)
             .permission("allow-nc-report-location")
             .permission("allow-nc-report-meta")
-            .permission("allow-nc-report-fullscreen"),
+            .permission("allow-nc-report-fullscreen")
+            .permission("allow-nc-report-media-support"),
     )?;
     Ok(())
 }
