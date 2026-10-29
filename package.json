@@ -12,13 +12,13 @@
     "icon:glass": "mkdir -p src-tauri/target/icon && xcrun actool src-tauri/icons/AppIcon.icon --compile src-tauri/target/icon --app-icon AppIcon --include-all-app-icons --output-partial-info-plist src-tauri/target/icon/partial.plist --platform macosx --target-device mac --minimum-deployment-target 14.0 --enable-on-demand-resources NO --development-region en --errors && cp src-tauri/target/icon/Assets.car src-tauri/icons/Assets.car"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-opener": "^2.7.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
+    "@tauri-apps/cli": "^2.12.4",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@types/react": "^19.1.8",
