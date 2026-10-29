@@ -96,6 +96,7 @@ pub fn create(
     {
         crate::features::media::enable(&webview);
         crate::features::tabs::web_process::watch(app, &webview, tab_id);
+        downloads::linux::watch(app, &webview);
     }
     Ok(())
 }
@@ -106,8 +107,12 @@ fn with_handlers(
     workspace_id: Uuid,
     tab_id: Uuid,
 ) -> WebviewBuilder<tauri::Wry> {
-    let (navigation_app, popup_app, title_app, download_app, load_app) =
-        (app.clone(), app.clone(), app.clone(), app.clone(), app.clone());
+    let (navigation_app, popup_app, title_app, load_app) = (app.clone(), app.clone(), app.clone(), app.clone());
+    #[cfg(not(target_os = "linux"))]
+    let builder = {
+        let download_app = app.clone();
+        builder.on_download(move |_, event| downloads::handle(&download_app, event))
+    };
     builder
         .on_navigation(move |url| allow_navigation(&navigation_app, workspace_id, tab_id, url))
         .on_new_window(move |url, _features| {
@@ -119,7 +124,6 @@ fn with_handlers(
             let effects = engine(&title_app).observe_title(tab_id, &title);
             run(&title_app, effects);
         })
-        .on_download(move |_, event| downloads::handle(&download_app, event))
         .on_page_load(move |_, page| match page.event() {
             PageLoadEvent::Started => loading(&load_app, tab_id, true),
             PageLoadEvent::Finished => {

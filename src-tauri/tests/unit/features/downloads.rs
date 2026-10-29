@@ -27,3 +27,30 @@ fn unique_path_numbers_duplicates() {
     std::fs::write(folder.join("README"), "").unwrap();
     assert_eq!(unique_path(folder, "README"), folder.join("README (1)"));
 }
+
+#[test]
+fn destination_creates_a_missing_folder() {
+    let directory = tempfile::tempdir().unwrap();
+    let folder = directory.path().join("Downloads").join("nested");
+    let path = prepare_destination(&folder, "../report?.pdf");
+    assert_eq!(path, folder.join("_report_.pdf"));
+    assert!(folder.is_dir());
+}
+
+#[test]
+fn short_transfer_is_a_failure() {
+    assert_eq!(outcome(None, 1_000_000, 1_000), Err("incomplete: received 1000 of 1000000 bytes".into()));
+    assert_eq!(outcome(None, 1_000, 1_000), Ok(()));
+    assert_eq!(outcome(None, 0, 1_000), Ok(()));
+    assert_eq!(outcome(Some("network".into()), 1_000, 1_000), Err("network".into()));
+}
+
+#[test]
+fn discarding_removes_only_existing_partial_files() {
+    let directory = tempfile::tempdir().unwrap();
+    let partial = directory.path().join("a.bin");
+    std::fs::write(&partial, "x").unwrap();
+    discard_partial(&partial);
+    assert!(!partial.exists());
+    discard_partial(&partial);
+}
