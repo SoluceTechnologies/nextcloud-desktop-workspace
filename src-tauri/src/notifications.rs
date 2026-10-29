@@ -1,6 +1,6 @@
 use crate::keychain::{self, Credentials};
 use crate::runtime::{engine, notice, run};
-use crate::{auth, http, urls};
+use crate::{auth, diagnostics, http, urls};
 use serde::Deserialize;
 use std::cmp::Reverse;
 use std::collections::HashMap;
@@ -44,11 +44,11 @@ struct SignedInWorkspace {
 }
 
 pub fn spawn_poller(app: AppHandle) {
-    thread::spawn(move || {
+    diagnostics::spawn("notifications", move || {
         let mut last_seen: HashMap<Uuid, u64> = HashMap::new();
         thread::sleep(FIRST_POLL_DELAY);
         loop {
-            poll(&app, &mut last_seen);
+            diagnostics::guard("notification poll", || poll(&app, &mut last_seen));
             thread::sleep(POLL_INTERVAL);
         }
     });

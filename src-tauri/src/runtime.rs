@@ -1,5 +1,6 @@
 use crate::engine::{Effect, Engine, Shared};
 use crate::model::AppState;
+use crate::diagnostics::{self, guard};
 use crate::{profiles, store, webviews, window};
 use std::collections::HashSet;
 use std::error::Error;
@@ -30,14 +31,16 @@ pub fn notice(app: &AppHandle, text: impl Into<String>) {
 }
 
 pub fn spawn_worker(app: AppHandle, receiver: Receiver<Vec<Effect>>, sweep_state: Option<AppState>) {
-    std::thread::spawn(move || {
+    diagnostics::spawn("effects", move || {
         let mut sweep_state = sweep_state;
         let mut bridged_workspaces = HashSet::new();
         for effects in receiver {
-            apply(&app, effects, &mut bridged_workspaces);
-            if let Some(state) = sweep_state.take() {
-                profiles::sweep(&app, &state);
-            }
+            guard("effect batch", || {
+                apply(&app, effects, &mut bridged_workspaces);
+                if let Some(state) = sweep_state.take() {
+                    profiles::sweep(&app, &state);
+                }
+            });
         }
     });
 }
@@ -45,7 +48,7 @@ pub fn spawn_worker(app: AppHandle, receiver: Receiver<Vec<Effect>>, sweep_state
 fn apply(app: &AppHandle, effects: Vec<Effect>, bridged_workspaces: &mut HashSet<Uuid>) {
     let mut changed = false;
     for effect in effects {
-        let result = match effect {
+        let result = guard("effect", || match effect {
             Effect::Changed => {
                 changed = true;
                 Ok(())
@@ -73,9 +76,9 @@ fn apply(app: &AppHandle, effects: Vec<Effect>, bridged_workspaces: &mut HashSet
             Effect::OpenExternal(url) => webviews::open_external(app, &url),
             Effect::ClearProfile { workspace_id, delete } => profiles::clear(app, workspace_id, delete),
             Effect::Theme(appearance) => window::apply_theme(app, appearance),
-        };
-        if let Err(error) = result {
-            eprintln!("[ncw] effect failed: {error}");
+        });
+        if let Some(Err(error)) = result {
+            log::error!("effect failed: {error}");
         }
     }
     if changed {
@@ -87,6 +90,6 @@ fn publish(app: &AppHandle) {
     let state = engine(app).state.clone();
     let _ = app.emit_to("shell", "state-changed", &state);
     if let Err(error) = store::save(&app.state::<StorePath>().0, &state) {
-        eprintln!("[ncw] save failed: {error}");
+        log::error!("save failed: {error}");
     }
 }

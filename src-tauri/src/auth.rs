@@ -1,7 +1,7 @@
 use crate::keychain::{self, Credentials};
 use crate::runtime::{engine, notice, run};
 use crate::session::{self, Decision, RetryBudget};
-use crate::{http, signed_load, urls, webviews};
+use crate::{diagnostics, http, signed_load, urls, webviews};
 use serde::Deserialize;
 use std::sync::{LazyLock, Mutex, MutexGuard};
 use std::thread;
@@ -44,7 +44,7 @@ fn base_url(app: &AppHandle, workspace_id: Uuid) -> Option<Url> {
 pub fn sign_in(app: &AppHandle, workspace_id: Uuid) {
     let Some(base) = base_url(app, workspace_id) else { return };
     let app = app.clone();
-    thread::spawn(move || {
+    diagnostics::spawn("sign-in", move || {
         let flow = match start_login_flow(&base) {
             Ok(flow) => flow,
             Err(message) => return notice(&app, message),
@@ -74,7 +74,7 @@ pub fn sign_out(app: &AppHandle, workspace_id: Uuid, revoke_on_server: bool) {
     let cached = keychain::forget_cached(workspace_id);
     let effects = engine(app).set_login(workspace_id, None);
     run(app, effects);
-    thread::spawn(move || {
+    diagnostics::spawn("sign-out", move || {
         let credentials = keychain::delete(workspace_id).or(cached);
         if let (true, Some(base), Some(credentials)) = (revoke_on_server, base, credentials) {
             revoke(&base, &credentials);
@@ -117,7 +117,7 @@ pub fn page_answered(tab_id: Uuid, url: &Url) {
 
 fn reload_signed_in(app: &AppHandle, workspace_id: Uuid, tab_id: Uuid, url: Url) {
     let app = app.clone();
-    thread::spawn(move || {
+    diagnostics::spawn("signed-reload", move || {
         let Some(webview) = app.get_webview(&webviews::label(workspace_id, tab_id)) else { return };
         webviews::loading(&app, tab_id, true);
         match keychain::load(workspace_id) {

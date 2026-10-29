@@ -5,7 +5,7 @@ import { EmptyWorkspace } from '@/features/tabs/EmptyWorkspace';
 import { TabBar } from '@/features/tabs/TabBar';
 import { Unreachable } from '@/features/tabs/Unreachable';
 import { useLoadingTabs } from '@/features/tabs/useLoadingTabs';
-import { useOfflineTabs } from '@/features/tabs/useOfflineTabs';
+import { useOfflineTabs, type OfflineReason } from '@/features/tabs/useOfflineTabs';
 import { AddServerForm } from '@/features/workspaces/AddServerForm';
 import { Sidebar } from '@/features/workspaces/Sidebar';
 import { useUnread } from '@/features/workspaces/useUnread';
@@ -68,7 +68,7 @@ function Content(props: {
   state: AppState;
   dialog: Dialog | null;
   activeWorkspace: Workspace | null;
-  offlineTabs: Set<string>;
+  offlineTabs: Map<string, OfflineReason>;
   onCloseDialog: () => void;
 }): ReactNode {
   const { state, dialog, activeWorkspace, offlineTabs, onCloseDialog } = props;
@@ -77,8 +77,9 @@ function Content(props: {
   if (!activeWorkspace) return null;
   if (activeWorkspace.tabs.length === 0) return <EmptyWorkspace workspaceId={activeWorkspace.id} />;
   const activeTabId = activeWorkspace.activeTabId;
-  if (activeTabId && offlineTabs.has(activeTabId)) {
-    return <Unreachable tabId={activeTabId} serverName={activeWorkspace.name} />;
+  const offlineReason = activeTabId ? offlineTabs.get(activeTabId) : undefined;
+  if (activeTabId && offlineReason) {
+    return <Unreachable tabId={activeTabId} serverName={activeWorkspace.name} reason={offlineReason} />;
   }
   return null;
 }

@@ -1,5 +1,6 @@
 mod auth;
 mod commands;
+mod diagnostics;
 mod downloads;
 mod engine;
 mod http;
@@ -19,6 +20,8 @@ mod session;
 mod signed_load;
 mod store;
 mod urls;
+#[cfg(target_os = "linux")]
+mod web_process;
 mod webviews;
 mod window;
 
@@ -27,7 +30,9 @@ use std::sync::{mpsc, Mutex};
 use tauri::Manager;
 
 pub fn run() {
-    tauri::Builder::default()
+    diagnostics::install_panic_hook();
+    let result = tauri::Builder::default()
+        .plugin(diagnostics::log_plugin())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
@@ -57,6 +62,9 @@ pub fn run() {
         .on_menu_event(|app, event| menus::on_event(app, event.id().as_ref()))
         .setup(|app| {
             let handle = app.handle().clone();
+            diagnostics::log_startup(&handle);
+            #[cfg(target_os = "linux")]
+            diagnostics::forward_glib_logs();
             let store_path = app.path().app_config_dir()?.join("workspaces.json");
             let (state, notice) = store::load(&store_path);
             let sweep_state = notice.is_none().then(|| state.clone());
@@ -76,6 +84,10 @@ pub fn run() {
             notifications::spawn_poller(handle);
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+    if let Err(error) = result {
+        log::error!("NC Workspaces stopped: {error}");
+        eprintln!("NC Workspaces stopped: {error}");
+        std::process::exit(1);
+    }
 }
