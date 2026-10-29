@@ -58,5 +58,5 @@ unsafe fn observer_tracks_view_under_pointer(observer: *mut AnyObject, event: *m
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/mouse_tracking.rs"]
+#[path = "../../tests/unit/window/mouse_tracking.rs"]
 mod tests;

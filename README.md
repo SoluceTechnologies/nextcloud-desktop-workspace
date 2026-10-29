@@ -72,7 +72,12 @@ npx tauri build
 ```
 
 - `src/`: the shell UI (React): `app/`, `features/`, `components/`, `lib/`, `styles/`; tests in `tests/`
-- `src-tauri/`: the Rust side: workspaces, tabs, webviews, and the bridge injected into Nextcloud pages
+- `src-tauri/src/`: the Rust side
+  - `domain/`: the pure app model and state machine (`Engine` turns user actions into `Effect`s); no Tauri code, fully unit-tested
+  - `runtime.rs`: the single worker that applies effects to Tauri (webviews, window, profiles)
+  - `features/`: one folder per feature (`workspaces`, `tabs`, `auth`, `downloads`, `menus`, …), each with its own commands; platform code sits in `#[cfg]`-gated modules
+  - `window/`: the main window, layout and theme; `shared/`: HTTP client and diagnostics (logging, panic handling)
+  - unit tests live in `src-tauri/tests/unit/`, mirroring this tree
 
 ## Releases
 

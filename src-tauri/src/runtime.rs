@@ -1,7 +1,10 @@
-use crate::engine::{Effect, Engine, Shared};
-use crate::model::AppState;
-use crate::diagnostics::{self, guard};
-use crate::{profiles, store, webviews, window};
+use crate::domain::engine::{Effect, Engine, Shared};
+use crate::domain::model::AppState;
+use crate::features::tabs::webviews;
+use crate::features::workspaces::profiles;
+use crate::features::workspaces::store;
+use crate::shared::diagnostics::{self, guard};
+use crate::window;
 use std::collections::HashSet;
 use std::error::Error;
 use std::path::PathBuf;
@@ -18,6 +21,11 @@ pub struct StorePath(pub PathBuf);
 
 pub fn engine(app: &AppHandle) -> MutexGuard<'_, Engine> {
     app.state::<Shared>().inner().lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+pub fn update(app: &AppHandle, operation: impl FnOnce(&mut Engine) -> Vec<Effect>) {
+    let effects = operation(&mut engine(app));
+    run(app, effects);
 }
 
 pub fn run(app: &AppHandle, effects: Vec<Effect>) {

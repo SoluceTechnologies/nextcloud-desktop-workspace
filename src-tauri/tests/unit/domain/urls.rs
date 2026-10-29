@@ -1,5 +1,5 @@
 use super::*;
-use crate::model::Workspace;
+use crate::domain::model::Workspace;
 
 fn url(text: &str) -> Url {
     Url::parse(text).unwrap()

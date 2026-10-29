@@ -1,6 +1,6 @@
-use crate::model::{AppEntry, AppState, Appearance, Tab, Workspace, AUTH};
-use crate::router::{self, Route};
-use crate::urls;
+use crate::domain::model::{AppEntry, AppState, Appearance, Tab, Workspace, AUTH};
+use crate::domain::router::{self, Route};
+use crate::domain::urls;
 use std::collections::HashSet;
 use url::Url;
 use uuid::Uuid;
@@ -543,5 +543,5 @@ fn reorder<T>(items: &mut [T], ids: &[Uuid], key: impl Fn(&T) -> Uuid) -> bool {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/engine.rs"]
+#[path = "../../tests/unit/domain/engine.rs"]
 mod tests;

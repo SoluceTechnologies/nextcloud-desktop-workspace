@@ -135,5 +135,5 @@ impl Tab {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/model.rs"]
+#[path = "../../tests/unit/domain/model.rs"]
 mod tests;

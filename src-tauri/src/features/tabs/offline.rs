@@ -1,5 +1,7 @@
+use crate::domain::urls;
 use crate::runtime::{engine, run};
-use crate::{diagnostics, http, urls};
+use crate::shared::diagnostics;
+use crate::shared::http;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};

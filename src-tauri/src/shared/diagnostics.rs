@@ -121,5 +121,5 @@ fn glib_level(level: glib::LogLevel) -> log::Level {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/diagnostics.rs"]
+#[path = "../../tests/unit/shared/diagnostics.rs"]
 mod tests;
