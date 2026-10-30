@@ -4684,6 +4684,13 @@ fn place_in_layout(layout: &gtk::Layout, widget: &webkit2gtk::WebView, bounds: w
   let (width, height): (i32, i32) = bounds.size.to_logical::<i32>(scale).into();
   layout.move_(widget, x, y);
   widget.set_size_request(width.max(1), height.max(1));
+  // Allocate now rather than on the layout's next pass: WebKit starts the web process
+  // right after the view is created and, without an allocation, sizes the page from
+  // the whole layout. The page then rendered its first frames at the window size.
+  if widget.is_visible() {
+    widget.preferred_size();
+    widget.size_allocate(&gtk::Allocation::new(x, y, width.max(1), height.max(1)));
+  }
 }
 
 #[cfg(any(
