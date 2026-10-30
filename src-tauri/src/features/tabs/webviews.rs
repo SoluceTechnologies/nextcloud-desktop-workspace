@@ -102,7 +102,7 @@ pub fn create(
     #[cfg(target_os = "linux")]
     {
         crate::features::media::linux::configure(&webview);
-        crate::shared::system_font::configure(&webview);
+        crate::shared::fonts::configure(&webview);
         crate::features::tabs::web_process::watch(app, &webview, tab_id);
         downloads::linux::watch(app, &webview);
         webview.navigate(url)?;
