@@ -32,6 +32,20 @@ Remove the vendored copy once upstream fixes the bug.
 - **Symbols:** release binaries keep their symbol names (`strip = "debuginfo"`) so backtraces are readable. This costs about 4 MB.
 - **Crashed web process (Linux):** the tab shows "Page stopped" with a Reload button. On macOS the runtime already reloads the page; on Windows, WebView2 shows its own error page.
 
+### Shared-memory rendering on NVIDIA displays (Linux)
+
+Ubuntu's and Debian's WebKitGTK carry a patch that refuses every buffer transport when the display runs on NVIDIA's driver ([webkit#262607](https://bugs.webkit.org/show_bug.cgi?id=262607)), so web views get no accelerated backing store. WebKitGTK 2.52 does not check for that: when a page enters accelerated compositing anyway, the UI process dereferences the missing backing store and the whole app crashes (SIGSEGV in `AcceleratedBackingStore::update`).
+
+Pages reach accelerated compositing through code paths that ignore the "compositing disabled" setting. View Transitions are one. Ordinary layout is another: clicking Download in Nextcloud Files triggered it (traced to `RenderLayerCompositor::computeCompositingRequirements`). Chasing each trigger does not scale, so the app restores the backing store instead.
+
+When the boot GPU uses the `nvidia` driver, `shared::rendering::prepare` sets `WEBKIT_FORCE_DMABUF_RENDERER=1` and `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1` before GTK starts:
+
+- Shared memory avoids the NVIDIA DMA-BUF bug the patch guards against. Forcing DMA-BUF alone fails with Wayland "Error 71 (Protocol error)".
+- Every webview is added through `webviews::add_child`, which sets the hardware acceleration policy to Never. Pages therefore render exactly as before (`webkit://gpu` is unchanged), and a stray compositing entry lands on a real backing store instead of crashing.
+- Any of those variables, `WEBKIT_DISABLE_DMABUF_RENDERER` or `WEBKIT_DISABLE_COMPOSITING_MODE` set by the user wins; the app then changes nothing.
+
+Remove this once WebKitGTK checks for the missing backing store.
+
 ### View Transitions are off on Linux
 
 WebKitGTK 2.52 crashes the whole app (SIGSEGV in `AcceleratedBackingStore::update`) when a page starts a View Transition in a web view without an accelerated backing store. That is the case for Ubuntu's WebKitGTK on NVIDIA. The crash has been reproduced, and no `WEBKIT_*` environment variable prevents it ([webkit#321683](https://bugs.webkit.org/show_bug.cgi?id=321683)).

@@ -12,6 +12,8 @@ use std::sync::{mpsc, Mutex};
 use tauri::Manager;
 
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    shared::rendering::prepare();
     diagnostics::install_panic_hook();
     let result = tauri::Builder::default()
         .plugin(diagnostics::log_plugin())
