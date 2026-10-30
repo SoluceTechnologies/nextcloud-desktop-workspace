@@ -12,7 +12,7 @@ use tauri::ipc::CapabilityBuilder;
 use tauri::utils::acl::RemoteUrlPattern;
 use tauri::utils::config::BackgroundThrottlingPolicy;
 use tauri::webview::{NewWindowResponse, PageLoadEvent, WebviewBuilder};
-use tauri::{AppHandle, Emitter, Manager, Position, Size, Webview, WebviewUrl, Window};
+use tauri::{AppHandle, Emitter, Manager, Webview, WebviewUrl};
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
 use uuid::Uuid;
@@ -50,19 +50,6 @@ pub fn is_content(label: &str) -> bool {
 // `devtools` cargo feature is ever enabled, which would otherwise turn them on in release.
 pub fn builder(label: impl Into<String>, url: WebviewUrl) -> WebviewBuilder<tauri::Wry> {
     WebviewBuilder::new(label, url).devtools(cfg!(debug_assertions))
-}
-
-// Every webview is added through here so platform rendering settings reach all of them.
-pub fn add_child(
-    window: &Window,
-    builder: WebviewBuilder<tauri::Wry>,
-    position: impl Into<Position>,
-    size: impl Into<Size>,
-) -> tauri::Result<Webview> {
-    let webview = window.add_child(builder, position, size)?;
-    #[cfg(target_os = "linux")]
-    crate::shared::rendering::configure(&webview);
-    Ok(webview)
 }
 
 pub fn with_webview(
@@ -109,7 +96,7 @@ pub fn create(
         None => builder,
     };
     let (position, size) = window::content_rect(&window)?;
-    let webview = add_child(&window, profiles::with_profile(app, builder, workspace_id)?, position, size)?;
+    let webview = window.add_child(profiles::with_profile(app, builder, workspace_id)?, position, size)?;
     webview.hide()?;
     loading(app, tab_id, true);
     #[cfg(target_os = "linux")]

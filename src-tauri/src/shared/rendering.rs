@@ -1,7 +1,4 @@
 use std::path::Path;
-use std::sync::OnceLock;
-use tauri::Webview;
-use webkit2gtk::{HardwareAccelerationPolicy, SettingsExt, WebViewExt};
 
 // Ubuntu's and Debian's WebKitGTK refuses every buffer transport when the display runs
 // on NVIDIA's driver (their disable-nvidia-dmabuf patch, for
@@ -10,8 +7,8 @@ use webkit2gtk::{HardwareAccelerationPolicy, SettingsExt, WebViewExt};
 // crashes the whole app (AcceleratedBackingStore::update on null): View Transitions,
 // and ordinary layouts that reach WebKit's unchecked compositing paths, as clicking
 // Download in Nextcloud Files did. The shared-memory transport avoids the NVIDIA
-// DMA-BUF bug the patch guards against and gives every web view its backing store.
-// Policy Never keeps pages rendering exactly as they did without one.
+// DMA-BUF bug the patch guards against and gives every web view its backing store,
+// so pages composite on the GPU as WebKit expects.
 const DRM_CLASS: &str = "/sys/class/drm";
 const SHARED_MEMORY_RENDERER: [(&str, &str); 2] =
     [("WEBKIT_FORCE_DMABUF_RENDERER", "1"), ("WEBKIT_DMABUF_RENDERER_FORCE_SHM", "1")];
@@ -22,30 +19,13 @@ const USER_OVERRIDES: [&str; 4] = [
     "WEBKIT_DISABLE_COMPOSITING_MODE",
 ];
 
-static SHARED_MEMORY: OnceLock<bool> = OnceLock::new();
-
 // Must run before GTK and WebKit start, and before any other thread exists.
 pub fn prepare() {
-    let enabled = needs_shared_memory(nvidia_drives_display(Path::new(DRM_CLASS)), |name| {
-        std::env::var_os(name).is_some()
-    });
-    if enabled {
+    if needs_shared_memory(nvidia_drives_display(Path::new(DRM_CLASS)), |name| std::env::var_os(name).is_some()) {
         for (name, value) in SHARED_MEMORY_RENDERER {
             std::env::set_var(name, value);
         }
     }
-    let _ = SHARED_MEMORY.set(enabled);
-}
-
-pub fn configure(webview: &Webview) {
-    if !SHARED_MEMORY.get().copied().unwrap_or(false) {
-        return;
-    }
-    let _ = webview.with_webview(|platform_webview| {
-        if let Some(settings) = WebViewExt::settings(&platform_webview.inner()) {
-            settings.set_hardware_acceleration_policy(HardwareAccelerationPolicy::Never);
-        }
-    });
 }
 
 fn needs_shared_memory(nvidia_display: bool, is_set: impl Fn(&str) -> bool) -> bool {
