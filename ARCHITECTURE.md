@@ -18,6 +18,8 @@ Upstream GTK child webviews are stacked in a box and ignore their bounds ([tauri
 
 We vendor the crate and mount child webviews in a `gtk::Layout` instead. The change is kept in `src-tauri/vendor/tauri-runtime-wry.linux-child-webviews.patch`.
 
+A child webview is allocated as soon as it is placed, not on the layout's next pass. WebKit starts the web process right after the view is created, and an unallocated view takes its parent's size, here the whole window. A new tab then showed a stale, window-sized frame while its first page loaded, which appeared as a dark band under the tab bar.
+
 To upgrade:
 
 1. Unpack the new crates.io release into the vendor folder.

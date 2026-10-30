@@ -1,6 +1,6 @@
 diff -ruN a/Cargo.toml b/Cargo.toml
---- a/Cargo.toml
-+++ b/Cargo.toml
+--- a/Cargo.toml	2026-10-30 13:54:52.597614695 +0100
++++ b/Cargo.toml	2026-10-30 14:01:20.454910321 +0100
 @@ -151,3 +151,7 @@
  collapsible_if = "allow"
  or_fun_call = "warn"
@@ -10,8 +10,8 @@ diff -ruN a/Cargo.toml b/Cargo.toml
 +[lints.rust]
 +unused_unsafe = "allow"
 diff -ruN a/src/lib.rs b/src/lib.rs
---- a/src/lib.rs
-+++ b/src/lib.rs
+--- a/src/lib.rs	2026-10-30 13:54:52.597915257 +0100
++++ b/src/lib.rs	2026-10-30 14:01:20.455784888 +0100
 @@ -3727,18 +3727,18 @@
                let scale_factor = window.scale_factor();
                let size = bounds.size.to_logical::<f32>(scale_factor);
@@ -107,7 +107,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
                      position: LogicalPosition::new(size.width * b.x_rate, size.height * b.y_rate)
                        .into(),
                      size: LogicalSize::new(size.width * b.width_rate, size.height * b.height_rate)
-@@ -4666,6 +4666,75 @@
+@@ -4666,6 +4666,82 @@
    height_rate: f32,
  }
  
@@ -129,6 +129,13 @@ diff -ruN a/src/lib.rs b/src/lib.rs
 +  let (width, height): (i32, i32) = bounds.size.to_logical::<i32>(scale).into();
 +  layout.move_(widget, x, y);
 +  widget.set_size_request(width.max(1), height.max(1));
++  // Allocate now rather than on the layout's next pass: WebKit starts the web process
++  // right after the view is created and, without an allocation, sizes the page from
++  // the whole layout. The page then rendered its first frames at the window size.
++  if widget.is_visible() {
++    widget.preferred_size();
++    widget.size_allocate(&gtk::Allocation::new(x, y, width.max(1), height.max(1)));
++  }
 +}
 +
 +#[cfg(any(
@@ -183,7 +190,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
  fn create_webview<T: UserEvent>(
    kind: WebviewKind,
    window: &Window,
-@@ -4896,6 +4965,10 @@
+@@ -4896,6 +4972,10 @@
      });
    }
  
@@ -194,7 +201,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
    let webview_bounds = if let Some(bounds) = webview_attributes.bounds {
      let bounds: RectWrapper = bounds.into();
      let bounds = bounds.0;
-@@ -4905,8 +4978,12 @@
+@@ -4905,8 +4985,12 @@
      let size = bounds.size.to_logical::<f32>(scale_factor);
  
      webview_builder = webview_builder.with_bounds(bounds);
@@ -208,7 +215,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
  
      if webview_attributes.auto_resize {
        Some(WebviewBounds {
-@@ -4921,10 +4998,15 @@
+@@ -4921,10 +5005,15 @@
    } else {
      #[cfg(feature = "unstable")]
      {
@@ -227,7 +234,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
        Some(WebviewBounds {
          x_rate: 0.,
          y_rate: 0.,
-@@ -5169,9 +5251,25 @@
+@@ -5169,9 +5258,25 @@
        target_os = "android"
      )))]
      WebviewKind::WindowChild => {
@@ -255,7 +262,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
      }
      #[cfg(any(
        target_os = "windows",
-@@ -5312,6 +5410,27 @@
+@@ -5312,6 +5417,27 @@
    window.inner_size()
  }
  
@@ -283,7 +290,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
  #[cfg(not(target_os = "macos"))]
  #[allow(unused_variables)]
  fn inner_size(
-@@ -5319,7 +5438,7 @@
+@@ -5319,7 +5445,7 @@
    webviews: &[WebviewWrapper],
    has_children: bool,
  ) -> PhysicalSize<u32> {
