@@ -41,6 +41,8 @@ jobs:
         run: |
           ! grep -nE '"devtools"' src-tauri/Cargo.toml
           test "$(grep -rn 'WebviewBuilder::new(' src-tauri/src | wc -l)" -eq 1
+      - name: Webviews are added through webviews::add_child
+        run: test "$(grep -rn '\.add_child(' src-tauri/src | wc -l)" -eq 1
       - run: npm ci
       - run: npm run build
       - run: cargo clippy --all-targets --locked -- -D warnings

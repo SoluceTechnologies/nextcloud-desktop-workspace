@@ -32,7 +32,8 @@ pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
     #[cfg(target_os = "linux")]
     gtk_theme::remember_system_theme();
     let window = builder.build()?;
-    window.add_child(
+    webviews::add_child(
+        &window,
         webviews::builder("shell", WebviewUrl::App("index.html".into())).auto_resize(),
         LogicalPosition::new(0.0, 0.0),
         logical_size(&window)?,
