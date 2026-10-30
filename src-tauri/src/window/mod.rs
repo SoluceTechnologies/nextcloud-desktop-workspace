@@ -1,5 +1,8 @@
 #[cfg(target_os = "macos")]
 pub mod mouse_tracking;
+mod presentation;
+
+pub use presentation::Presentation;
 
 use crate::domain::model::Appearance;
 use crate::features::tabs::webviews;
@@ -115,9 +118,10 @@ pub fn relayout(window: &Window) {
 }
 
 pub fn show_only(app: &AppHandle, target_label: Option<&str>) -> EffectResult {
+    let visible = presentation(app).show(target_label);
     let window = main_window(app)?;
     for webview in content_webviews(&window) {
-        if Some(webview.label()) == target_label {
+        if Some(webview.label()) == visible.as_deref() {
             let (position, size) = rect_for(&window, webview.label())?;
             webview.set_bounds(bounds(position, size))?;
             webview.show()?;
@@ -127,6 +131,22 @@ pub fn show_only(app: &AppHandle, target_label: Option<&str>) -> EffectResult {
         }
     }
     Ok(())
+}
+
+pub fn content_starting(app: &AppHandle, label: &str) {
+    presentation(app).start(label);
+}
+
+pub fn content_ready(app: &AppHandle, label: &str) {
+    if presentation(app).ready(label) {
+        if let Err(error) = show_only(app, Some(label)) {
+            log::error!("showing {label} failed: {error}");
+        }
+    }
+}
+
+fn presentation(app: &AppHandle) -> std::sync::MutexGuard<'_, presentation::Shown> {
+    app.state::<Presentation>().inner().0.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 // A single set_bounds call, rather than separate set_position/set_size calls: on

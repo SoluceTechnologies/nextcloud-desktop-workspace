@@ -105,6 +105,7 @@ pub fn create(
         crate::shared::fonts::configure(&webview);
         crate::features::tabs::web_process::watch(app, &webview, tab_id);
         downloads::linux::watch(app, &webview);
+        window::content_starting(app, &label);
         webview.navigate(url)?;
     }
     Ok(())
@@ -124,7 +125,11 @@ fn with_handlers(
         builder.on_download(move |_, event| downloads::handle(&download_app, event))
     };
     builder
-        .on_navigation(move |url| allow_navigation(&navigation_app, workspace_id, tab_id, url))
+        .on_navigation(move |url| {
+            // The web process asks to navigate once it is up, so the tab can be painted now.
+            window::content_ready(&navigation_app, &label(workspace_id, tab_id));
+            allow_navigation(&navigation_app, workspace_id, tab_id, url)
+        })
         .on_new_window(move |url, _features| {
             let effects = engine(&popup_app).on_new_window(&url);
             run(&popup_app, effects);
