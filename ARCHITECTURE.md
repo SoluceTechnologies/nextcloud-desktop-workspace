@@ -49,13 +49,15 @@ When the boot GPU uses the `nvidia` driver, `shared::rendering::prepare` sets `W
 
 Remove this once WebKitGTK checks for the missing backing store.
 
-### `system-ui` is the desktop font (Linux)
+### Text renders as in a browser (Linux)
 
-Nextcloud, like most sites, asks for the desktop font with `system-ui`. Browsers on Linux use the GTK font for it (Ubuntu on Ubuntu). WebKitGTK 2.52 passes the name straight to fontconfig instead; its fallback to the GTK font only handles `-webkit-`-prefixed names. Fontconfig's own alias then picks another font, Adwaita Sans on Ubuntu, so every page looked different from the browser.
+`shared::fonts` adds one user style sheet to the shell and to every tab. It handles two differences from a browser on the same desktop.
 
-WebKit checks a page's `@font-face` rules before asking fontconfig. `shared::system_font` therefore adds a user style sheet to the shell and to every tab, defining `"system-ui"` as `local(<GTK font family>)` for all weights, upright and italic. Nextcloud's font stack then renders pixel-identical to the GTK font. The shell's own font stack lists `system-ui` first for the same reason.
+**Font family.** Nextcloud, like most sites, asks for the desktop font with `system-ui`. Browsers on Linux use the GTK font for it (Ubuntu on Ubuntu). WebKitGTK 2.52 passes the name straight to fontconfig instead; its fallback to the GTK font only handles `-webkit-`-prefixed names. Fontconfig's own alias then picks another font, Adwaita Sans on Ubuntu.
 
-Remove this once WebKitGTK resolves `system-ui` to the GTK font.
+WebKit checks a page's `@font-face` rules before asking fontconfig, so the style sheet defines `"system-ui"` as `local(<GTK font family>)` for all weights, upright and italic. Line widths of Nextcloud's font stack then match Chrome to 0.01 px at weights 400 to 700. The shell's own font stack lists `system-ui` first for the same reason. Remove this once WebKitGTK resolves `system-ui` to the GTK font.
+
+**Smoothing.** On Wayland, Chromium-based browsers draw text with grayscale anti-aliasing. WebKitGTK follows GNOME's subpixel setting, and the colour fringes made every weight look bolder and darker than in the browser. On Wayland the style sheet sets `-webkit-font-smoothing: antialiased`; X11 keeps the desktop setting, as Chrome does there.
 
 ### View Transitions are off on Linux
 

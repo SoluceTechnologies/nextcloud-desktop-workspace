@@ -38,7 +38,7 @@ pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
         logical_size(&window)?,
     )?;
     #[cfg(target_os = "linux")]
-    crate::shared::system_font::configure(&_shell);
+    crate::shared::fonts::configure(&_shell);
     if let Ok(theme) = window.theme() {
         paint_chrome(&window, theme);
     }
