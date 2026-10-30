@@ -49,6 +49,14 @@ When the boot GPU uses the `nvidia` driver, `shared::rendering::prepare` sets `W
 
 Remove this once WebKitGTK checks for the missing backing store.
 
+### `system-ui` is the desktop font (Linux)
+
+Nextcloud, like most sites, asks for the desktop font with `system-ui`. Browsers on Linux use the GTK font for it (Ubuntu on Ubuntu). WebKitGTK 2.52 passes the name straight to fontconfig instead; its fallback to the GTK font only handles `-webkit-`-prefixed names. Fontconfig's own alias then picks another font, Adwaita Sans on Ubuntu, so every page looked different from the browser.
+
+WebKit checks a page's `@font-face` rules before asking fontconfig. `shared::system_font` therefore adds a user style sheet to the shell and to every tab, defining `"system-ui"` as `local(<GTK font family>)` for all weights, upright and italic. Nextcloud's font stack then renders pixel-identical to the GTK font. The shell's own font stack lists `system-ui` first for the same reason.
+
+Remove this once WebKitGTK resolves `system-ui` to the GTK font.
+
 ### View Transitions are off on Linux
 
 WebKitGTK 2.52 crashes the whole app (SIGSEGV in `AcceleratedBackingStore::update`) when a page starts a View Transition in a web view without an accelerated backing store. That was the case for Ubuntu's WebKitGTK on NVIDIA until the shared-memory renderer above, and still is wherever WebKit has no backing store (for example with `WEBKIT_DISABLE_DMABUF_RENDERER=1`, or without OpenGL) ([webkit#321683](https://bugs.webkit.org/show_bug.cgi?id=321683)).
