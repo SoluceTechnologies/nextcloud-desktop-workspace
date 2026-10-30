@@ -41,14 +41,15 @@ Pages reach accelerated compositing through code paths that ignore the "composit
 When the boot GPU uses the `nvidia` driver, `shared::rendering::prepare` sets `WEBKIT_FORCE_DMABUF_RENDERER=1` and `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1` before GTK starts:
 
 - Shared memory avoids the NVIDIA DMA-BUF bug the patch guards against. Forcing DMA-BUF alone fails with Wayland "Error 71 (Protocol error)".
-- Every webview is added through `webviews::add_child`, which sets the hardware acceleration policy to Never. Pages therefore render exactly as before (`webkit://gpu` is unchanged), and a stray compositing entry lands on a real backing store instead of crashing.
+- Pages now composite on the GPU, as WebKit intends. Measured at 1800×1000 with a full-window animation: same 62 fps as before, 40 % CPU instead of 102 %, about 70 MB more memory per web view.
+- The hardware acceleration policy must stay at its default. With policy Never, a page that enters compositing anyway still attaches no content and the tab goes blank.
 - Any of those variables, `WEBKIT_DISABLE_DMABUF_RENDERER` or `WEBKIT_DISABLE_COMPOSITING_MODE` set by the user wins; the app then changes nothing.
 
 Remove this once WebKitGTK checks for the missing backing store.
 
 ### View Transitions are off on Linux
 
-WebKitGTK 2.52 crashes the whole app (SIGSEGV in `AcceleratedBackingStore::update`) when a page starts a View Transition in a web view without an accelerated backing store. That is the case for Ubuntu's WebKitGTK on NVIDIA. The crash has been reproduced, and no `WEBKIT_*` environment variable prevents it ([webkit#321683](https://bugs.webkit.org/show_bug.cgi?id=321683)).
+WebKitGTK 2.52 crashes the whole app (SIGSEGV in `AcceleratedBackingStore::update`) when a page starts a View Transition in a web view without an accelerated backing store. That was the case for Ubuntu's WebKitGTK on NVIDIA until the shared-memory renderer above, and still is wherever WebKit has no backing store (for example with `WEBKIT_DISABLE_DMABUF_RENDERER=1`, or without OpenGL) ([webkit#321683](https://bugs.webkit.org/show_bug.cgi?id=321683)).
 
 Content webviews therefore turn off the `ViewTransitions` and `CrossDocumentViewTransitions` WebKit features before their first page loads. Only the animation is lost. Remove this once WebKitGTK checks for the missing backing store.
 
