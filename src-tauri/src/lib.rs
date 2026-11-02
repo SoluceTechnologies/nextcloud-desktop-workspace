@@ -64,6 +64,7 @@ pub fn run() {
             app.manage(runtime::StorePath(store_path));
             app.manage(runtime::EffectSender(sender));
             app.manage(window::Fullscreen::default());
+            app.manage(window::Presentation::default());
             #[cfg(target_os = "macos")]
             window::mouse_tracking::deliver_mouse_moves_only_to_topmost_webview();
             window::create_main_window(&handle)?;
