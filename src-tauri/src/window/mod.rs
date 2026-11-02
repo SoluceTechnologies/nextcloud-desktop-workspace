@@ -67,9 +67,6 @@ pub fn apply_theme(app: &AppHandle, appearance: Appearance) -> EffectResult {
     Ok(())
 }
 
-// WebKitGTK derives prefers-color-scheme from the GTK theme name too, and tao only
-// strips a "-dark" theme suffix at window creation, so switching to Light at
-// runtime under e.g. Yaru-dark kept everything dark.
 #[cfg(target_os = "linux")]
 mod gtk_theme {
     use crate::domain::model::Appearance;
@@ -133,7 +130,6 @@ pub fn show_only(app: &AppHandle, target_label: Option<&str>) -> EffectResult {
     Ok(())
 }
 
-// Only Linux tabs wait for their web process before being shown.
 #[cfg(target_os = "linux")]
 pub fn content_starting(app: &AppHandle, label: &str) {
     presentation(app).start(label);
@@ -151,10 +147,6 @@ fn presentation(app: &AppHandle) -> std::sync::MutexGuard<'_, presentation::Show
     app.state::<Presentation>().inner().0.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-// A single set_bounds call, rather than separate set_position/set_size calls: on
-// Linux/GTK, wry's webview.bounds() (used internally to fill in the field the other
-// setter doesn't touch) only tracks position under X11 and otherwise reports (0, 0),
-// so two separate calls made the second silently wipe out the first one's position.
 fn bounds(position: LogicalPosition<f64>, size: LogicalSize<f64>) -> tauri::Rect {
     tauri::Rect { position: position.into(), size: size.into() }
 }
