@@ -19,10 +19,14 @@ fn main() {
             "tab_menu",
             "apps_menu",
             "reveal_download",
+            "list_downloads",
+            "cancel_download",
             "retry_tab",
             "nc_report_location",
             "nc_report_meta",
             "nc_report_fullscreen",
+            "nc_report_media_support",
+            "open_in_browser",
         ]),
     ))
     .expect("failed to run tauri-build");

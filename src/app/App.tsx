@@ -1,16 +1,18 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { DownloadsButton } from '@/features/downloads/DownloadsButton';
+import { useDownloads } from '@/features/downloads/useDownloads';
 import { Notice } from '@/features/notices/Notice';
 import { useNotice } from '@/features/notices/useNotice';
 import { EmptyWorkspace } from '@/features/tabs/EmptyWorkspace';
 import { TabBar } from '@/features/tabs/TabBar';
 import { Unreachable } from '@/features/tabs/Unreachable';
 import { useLoadingTabs } from '@/features/tabs/useLoadingTabs';
-import { useOfflineTabs } from '@/features/tabs/useOfflineTabs';
+import { useOfflineTabs, type OfflineReason } from '@/features/tabs/useOfflineTabs';
 import { AddServerForm } from '@/features/workspaces/AddServerForm';
 import { Sidebar } from '@/features/workspaces/Sidebar';
 import { useUnread } from '@/features/workspaces/useUnread';
 import { api } from '@/lib/api';
-import type { AppState, Workspace } from '@/lib/types';
+import type { AppState, Download, Workspace } from '@/lib/types';
 import { useAppState } from '@/lib/useAppState';
 import { useTauriEvent } from '@/lib/useTauriEvent';
 import { DialogHost, type Dialog } from './DialogHost';
@@ -24,6 +26,7 @@ export default function App() {
   const loadingTabs = useLoadingTabs();
   const offlineTabs = useOfflineTabs();
   const unread = useUnread();
+  const downloads = useDownloads();
 
   useEffect(() => {
     api.setOverlay(dialog !== null);
@@ -49,12 +52,14 @@ export default function App() {
           workspace={activeWorkspace}
           loadingTabs={loadingTabs}
           notice={notice && <Notice notice={notice} />}
+          downloads={<DownloadsButton downloads={downloads} onOpen={() => setDialog({ kind: 'downloads' })} />}
         />
       )}
       <main className="content">
         <Content
           state={state}
           dialog={dialog}
+          downloads={downloads}
           activeWorkspace={activeWorkspace}
           offlineTabs={offlineTabs}
           onCloseDialog={closeDialog}
@@ -67,18 +72,20 @@ export default function App() {
 function Content(props: {
   state: AppState;
   dialog: Dialog | null;
+  downloads: Download[];
   activeWorkspace: Workspace | null;
-  offlineTabs: Set<string>;
+  offlineTabs: Map<string, OfflineReason>;
   onCloseDialog: () => void;
 }): ReactNode {
-  const { state, dialog, activeWorkspace, offlineTabs, onCloseDialog } = props;
-  if (dialog) return <DialogHost dialog={dialog} state={state} onClose={onCloseDialog} />;
+  const { state, dialog, downloads, activeWorkspace, offlineTabs, onCloseDialog } = props;
+  if (dialog) return <DialogHost dialog={dialog} state={state} downloads={downloads} onClose={onCloseDialog} />;
   if (state.workspaces.length === 0) return <AddServerForm />;
   if (!activeWorkspace) return null;
   if (activeWorkspace.tabs.length === 0) return <EmptyWorkspace workspaceId={activeWorkspace.id} />;
   const activeTabId = activeWorkspace.activeTabId;
-  if (activeTabId && offlineTabs.has(activeTabId)) {
-    return <Unreachable tabId={activeTabId} serverName={activeWorkspace.name} />;
+  const offlineReason = activeTabId ? offlineTabs.get(activeTabId) : undefined;
+  if (activeTabId && offlineReason) {
+    return <Unreachable tabId={activeTabId} serverName={activeWorkspace.name} reason={offlineReason} />;
   }
   return null;
 }

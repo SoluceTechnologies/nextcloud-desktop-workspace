@@ -31,6 +31,22 @@ The buttons download the installer from the [latest release](https://github.com/
 
 macOS 14 or later, Windows 10/11 (WebView2), or Linux with WebKitGTK 4.1.
 
+## Troubleshooting
+
+The app writes a log (`nc-workspaces.log`, rotated at 5 MB) that is useful in a bug report:
+
+- **Linux:** `~/.local/share/app.ncworkspaces.desktop/logs/`
+- **macOS:** `~/Library/Logs/app.ncworkspaces.desktop/`
+- **Windows:** `%LOCALAPPDATA%\app.ncworkspaces.desktop\logs\`
+
+If the app closes by itself on Linux, a core dump tells us where. Install `systemd-coredump`, reproduce the crash, then attach the output of:
+
+```bash
+coredumpctl info nc-workspaces
+```
+
+For a full backtrace with symbols, run `coredumpctl debug nc-workspaces` and type `bt` (gdb downloads the symbols when your distribution sets `DEBUGINFOD_URLS`).
+
 ## Development
 
 Requires Node 22 and Rust (stable).
@@ -56,7 +72,12 @@ npx tauri build
 ```
 
 - `src/`: the shell UI (React): `app/`, `features/`, `components/`, `lib/`, `styles/`; tests in `tests/`
-- `src-tauri/`: the Rust side: workspaces, tabs, webviews, and the bridge injected into Nextcloud pages
+- `src-tauri/src/`: the Rust side
+  - `domain/`: the pure app model and state machine (`Engine` turns user actions into `Effect`s); no Tauri code, fully unit-tested
+  - `runtime.rs`: the single worker that applies effects to Tauri (webviews, window, profiles)
+  - `features/`: one folder per feature (`workspaces`, `tabs`, `auth`, `downloads`, `menus`, …), each with its own commands; platform code sits in `#[cfg]`-gated modules
+  - `window/`: the main window, layout and theme; `shared/`: HTTP client and diagnostics (logging, panic handling)
+  - unit tests live in `src-tauri/tests/unit/`, mirroring this tree
 
 ## Releases
 

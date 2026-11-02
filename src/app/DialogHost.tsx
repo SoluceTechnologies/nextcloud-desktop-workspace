@@ -1,18 +1,22 @@
 import { ConfirmSheet } from '@/components/ConfirmSheet';
+import { DownloadsPanel } from '@/features/downloads/DownloadsPanel';
 import { AddServerForm } from '@/features/workspaces/AddServerForm';
 import { EditWorkspaceForm } from '@/features/workspaces/EditWorkspaceForm';
 import { api } from '@/lib/api';
-import type { AppState } from '@/lib/types';
+import type { AppState, Download } from '@/lib/types';
 
 export type Dialog =
   | { kind: 'add' }
+  | { kind: 'downloads' }
   | { kind: 'edit'; workspaceId: string }
   | { kind: 'confirm-remove'; workspaceId: string }
   | { kind: 'confirm-clear'; workspaceId: string }
   | { kind: 'confirm-close'; workspaceId: string; tabId: string };
 
-export function DialogHost({ dialog, state, onClose }: { dialog: Dialog; state: AppState; onClose: () => void }) {
+export function DialogHost(props: { dialog: Dialog; state: AppState; downloads: Download[]; onClose: () => void }) {
+  const { dialog, state, downloads, onClose } = props;
   if (dialog.kind === 'add') return <AddServerForm onDone={onClose} />;
+  if (dialog.kind === 'downloads') return <DownloadsPanel downloads={downloads} onClose={onClose} />;
   const workspace = state.workspaces.find((candidate) => candidate.id === dialog.workspaceId);
   if (!workspace) return null;
   switch (dialog.kind) {

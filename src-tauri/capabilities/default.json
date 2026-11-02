@@ -23,6 +23,9 @@
     "allow-tab-menu",
     "allow-apps-menu",
     "allow-reveal-download",
+    "allow-list-downloads",
+    "allow-cancel-download",
+    "allow-open-in-browser",
     "allow-retry-tab"
   ]
 }

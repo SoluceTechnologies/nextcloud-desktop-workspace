@@ -1,0 +1,301 @@
+diff -ruN a/Cargo.toml b/Cargo.toml
+--- a/Cargo.toml	2026-10-30 13:54:52.597614695 +0100
++++ b/Cargo.toml	2026-10-30 14:01:20.454910321 +0100
+@@ -151,3 +151,7 @@
+ collapsible_if = "allow"
+ or_fun_call = "warn"
+ redundant_clone = "warn"
++
++# Vendored copy: silence upstream lints that crates.io builds hide via --cap-lints.
++[lints.rust]
++unused_unsafe = "allow"
+diff -ruN a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs	2026-10-30 13:54:52.597915257 +0100
++++ b/src/lib.rs	2026-10-30 14:01:20.455784888 +0100
+@@ -3727,18 +3727,18 @@
+               let scale_factor = window.scale_factor();
+               let size = bounds.size.to_logical::<f32>(scale_factor);
+               let position = bounds.position.to_logical::<f32>(scale_factor);
+-              let window_size = window.inner_size().to_logical::<f32>(scale_factor);
++              let window_size = content_size(&window).to_logical::<f32>(scale_factor);
+               b.width_rate = size.width / window_size.width;
+               b.height_rate = size.height / window_size.height;
+               b.x_rate = position.x / window_size.width;
+               b.y_rate = position.y / window_size.height;
+             }
+ 
+-            if let Err(e) = webview.set_bounds(bounds) {
++            if let Err(e) = set_webview_bounds(&webview, bounds) {
+               log::error!("failed to set webview size: {e}");
+             }
+           }
+-          WebviewMessage::SetSize(size) => match webview.bounds() {
++          WebviewMessage::SetSize(size) => match webview_bounds(&webview) {
+             Ok(mut bounds) => {
+               bounds.size = size;
+ 
+@@ -3746,12 +3746,12 @@
+               let size = size.to_logical::<f32>(scale_factor);
+ 
+               if let Some(b) = &mut *webview.bounds.lock().unwrap() {
+-                let window_size = window.inner_size().to_logical::<f32>(scale_factor);
++                let window_size = content_size(&window).to_logical::<f32>(scale_factor);
+                 b.width_rate = size.width / window_size.width;
+                 b.height_rate = size.height / window_size.height;
+               }
+ 
+-              if let Err(e) = webview.set_bounds(bounds) {
++              if let Err(e) = set_webview_bounds(&webview, bounds) {
+                 log::error!("failed to set webview size: {e}");
+               }
+             }
+@@ -3759,7 +3759,7 @@
+               log::error!("failed to get webview bounds: {e}");
+             }
+           },
+-          WebviewMessage::SetPosition(position) => match webview.bounds() {
++          WebviewMessage::SetPosition(position) => match webview_bounds(&webview) {
+             Ok(mut bounds) => {
+               bounds.position = position;
+ 
+@@ -3767,12 +3767,12 @@
+               let position = position.to_logical::<f32>(scale_factor);
+ 
+               if let Some(b) = &mut *webview.bounds.lock().unwrap() {
+-                let window_size = window.inner_size().to_logical::<f32>(scale_factor);
++                let window_size = content_size(&window).to_logical::<f32>(scale_factor);
+                 b.x_rate = position.x / window_size.width;
+                 b.y_rate = position.y / window_size.height;
+               }
+ 
+-              if let Err(e) = webview.set_bounds(bounds) {
++              if let Err(e) = set_webview_bounds(&webview, bounds) {
+                 log::error!("failed to set webview position: {e}");
+               }
+             }
+@@ -3867,10 +3867,10 @@
+               log::error!("failed to focus webview: {e}");
+             }
+           }
+-          WebviewMessage::SetAutoResize(auto_resize) => match webview.bounds() {
++          WebviewMessage::SetAutoResize(auto_resize) => match webview_bounds(&webview) {
+             Ok(bounds) => {
+               let scale_factor = window.scale_factor();
+-              let window_size = window.inner_size().to_logical::<f32>(scale_factor);
++              let window_size = content_size(&window).to_logical::<f32>(scale_factor);
+               *webview.bounds.lock().unwrap() = if auto_resize {
+                 let size = bounds.size.to_logical::<f32>(scale_factor);
+                 let position = bounds.position.to_logical::<f32>(scale_factor);
+@@ -4270,17 +4270,17 @@
+               }
+             }
+           }
+-          TaoWindowEvent::Resized(size) => {
++          TaoWindowEvent::Resized(_) => {
+             if let Some((Some(window), webviews)) = windows
+               .0
+               .borrow()
+               .get(&window_id)
+               .map(|w| (w.inner.clone(), w.webviews.clone()))
+             {
+-              let size = size.to_logical::<f32>(window.scale_factor());
++              let size = content_size(&window).to_logical::<f32>(window.scale_factor());
+               for webview in webviews {
+                 if let Some(b) = &*webview.bounds.lock().unwrap() {
+-                  if let Err(e) = webview.set_bounds(wry::Rect {
++                  if let Err(e) = set_webview_bounds(&webview, wry::Rect {
+                     position: LogicalPosition::new(size.width * b.x_rate, size.height * b.y_rate)
+                       .into(),
+                     size: LogicalSize::new(size.width * b.width_rate, size.height * b.height_rate)
+@@ -4666,6 +4666,82 @@
+   height_rate: f32,
+ }
+ 
++// Child webviews on Linux live in a gtk::Layout (see `create_webview`). Layout
++// allocates each child at its stored position with its size request, relative to
++// its own GdkWindow, so geometry survives relayouts and ignores CSD offsets, and
++// its own size request stays 0x0 so the window can still shrink.
++#[cfg(any(
++  target_os = "linux",
++  target_os = "dragonfly",
++  target_os = "freebsd",
++  target_os = "netbsd",
++  target_os = "openbsd"
++))]
++fn place_in_layout(layout: &gtk::Layout, widget: &webkit2gtk::WebView, bounds: wry::Rect) {
++  use gtk::prelude::*;
++  let scale = widget.scale_factor() as f64;
++  let (x, y): (i32, i32) = bounds.position.to_logical::<i32>(scale).into();
++  let (width, height): (i32, i32) = bounds.size.to_logical::<i32>(scale).into();
++  layout.move_(widget, x, y);
++  widget.set_size_request(width.max(1), height.max(1));
++  // Allocate now rather than on the layout's next pass: WebKit starts the web process
++  // right after the view is created and, without an allocation, sizes the page from
++  // the whole layout. The page then rendered its first frames at the window size.
++  if widget.is_visible() {
++    widget.preferred_size();
++    widget.size_allocate(&gtk::Allocation::new(x, y, width.max(1), height.max(1)));
++  }
++}
++
++#[cfg(any(
++  target_os = "linux",
++  target_os = "dragonfly",
++  target_os = "freebsd",
++  target_os = "netbsd",
++  target_os = "openbsd"
++))]
++fn layout_child(webview: &WebView) -> Option<(gtk::Layout, webkit2gtk::WebView)> {
++  use gtk::prelude::*;
++  let widget = webview.webview();
++  let layout = widget.parent()?.downcast::<gtk::Layout>().ok()?;
++  Some((layout, widget))
++}
++
++fn set_webview_bounds(webview: &WebView, bounds: wry::Rect) -> wry::Result<()> {
++  #[cfg(any(
++    target_os = "linux",
++    target_os = "dragonfly",
++    target_os = "freebsd",
++    target_os = "netbsd",
++    target_os = "openbsd"
++  ))]
++  if let Some((layout, widget)) = layout_child(webview) {
++    place_in_layout(&layout, &widget, bounds);
++    return Ok(());
++  }
++  webview.set_bounds(bounds)
++}
++
++// wry only reports a GTK webview's position under X11, (0, 0) otherwise.
++fn webview_bounds(webview: &WebView) -> wry::Result<wry::Rect> {
++  #[cfg(any(
++    target_os = "linux",
++    target_os = "dragonfly",
++    target_os = "freebsd",
++    target_os = "netbsd",
++    target_os = "openbsd"
++  ))]
++  if let Some((layout, widget)) = layout_child(webview) {
++    use gtk::prelude::*;
++    let (width, height) = widget.size_request();
++    return Ok(wry::Rect {
++      position: LogicalPosition::new(layout.child_x(&widget), layout.child_y(&widget)).into(),
++      size: LogicalSize::new(width, height).into(),
++    });
++  }
++  webview.bounds()
++}
++
+ fn create_webview<T: UserEvent>(
+   kind: WebviewKind,
+   window: &Window,
+@@ -4896,6 +4972,10 @@
+     });
+   }
+ 
++  // Only the GTK child-webview path reads it (see place_in_layout).
++  #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios", target_os = "android")))]
++  #[allow(unused_assignments)]
++  let mut initial_bounds: Option<wry::Rect> = None;
+   let webview_bounds = if let Some(bounds) = webview_attributes.bounds {
+     let bounds: RectWrapper = bounds.into();
+     let bounds = bounds.0;
+@@ -4905,8 +4985,12 @@
+     let size = bounds.size.to_logical::<f32>(scale_factor);
+ 
+     webview_builder = webview_builder.with_bounds(bounds);
++    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios", target_os = "android")))]
++    {
++      initial_bounds = Some(bounds);
++    }
+ 
+-    let window_size = window.inner_size().to_logical::<f32>(scale_factor);
++    let window_size = content_size(window).to_logical::<f32>(scale_factor);
+ 
+     if webview_attributes.auto_resize {
+       Some(WebviewBounds {
+@@ -4921,10 +5005,15 @@
+   } else {
+     #[cfg(feature = "unstable")]
+     {
+-      webview_builder = webview_builder.with_bounds(wry::Rect {
++      let bounds = wry::Rect {
+         position: LogicalPosition::new(0, 0).into(),
+-        size: window.inner_size().into(),
+-      });
++        size: content_size(window).into(),
++      };
++      webview_builder = webview_builder.with_bounds(bounds);
++      #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios", target_os = "android")))]
++      {
++        initial_bounds = Some(bounds);
++      }
+       Some(WebviewBounds {
+         x_rate: 0.,
+         y_rate: 0.,
+@@ -5169,9 +5258,25 @@
+       target_os = "android"
+     )))]
+     WebviewKind::WindowChild => {
+-      // only way to account for menu bar height, and also works for multiwebviews :)
++      // A GtkBox stacks children and ignores their coordinates, so mount child
++      // webviews in a shared gtk::Layout instead (see `place_in_layout`).
++      use gtk::prelude::*;
+       let vbox = window.default_vbox().unwrap();
+-      webview_builder.build_gtk(vbox)
++      let layout = vbox
++        .children()
++        .into_iter()
++        .find_map(|child| child.downcast::<gtk::Layout>().ok())
++        .unwrap_or_else(|| {
++          let layout = gtk::Layout::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
++          vbox.pack_start(&layout, true, true, 0);
++          layout.show();
++          layout
++        });
++      let built = webview_builder.build_gtk(&layout);
++      if let (Ok(webview), Some(bounds)) = (&built, initial_bounds) {
++        place_in_layout(&layout, &webview.webview(), bounds);
++      }
++      built
+     }
+     #[cfg(any(
+       target_os = "windows",
+@@ -5312,6 +5417,27 @@
+   window.inner_size()
+ }
+ 
++// tao reports the configure-event size on Linux, which with client-side
++// decorations includes the header bar and the window shadow. GtkWindow::size
++// excludes both, i.e. it is the area child webviews actually get.
++fn content_size(window: &Window) -> PhysicalSize<u32> {
++  #[cfg(any(
++    target_os = "linux",
++    target_os = "dragonfly",
++    target_os = "freebsd",
++    target_os = "netbsd",
++    target_os = "openbsd"
++  ))]
++  {
++    use gtk::prelude::GtkWindowExt;
++    let (width, height) = window.gtk_window().size();
++    if width > 0 && height > 0 {
++      return LogicalSize::new(width as u32, height as u32).to_physical(window.scale_factor());
++    }
++  }
++  window.inner_size()
++}
++
+ #[cfg(not(target_os = "macos"))]
+ #[allow(unused_variables)]
+ fn inner_size(
+@@ -5319,7 +5445,7 @@
+   webviews: &[WebviewWrapper],
+   has_children: bool,
+ ) -> PhysicalSize<u32> {
+-  window.inner_size()
++  content_size(window)
+ }
+ 
+ fn to_tao_theme(theme: Option<Theme>) -> Option<TaoTheme> {

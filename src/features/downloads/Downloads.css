@@ -1,0 +1,41 @@
+.downloads-button {
+  flex: none; position: relative; display: grid; place-items: center; width: 28px; height: 28px; padding: 0;
+  border: 0; border-radius: 7px; background: none; color: var(--muted); cursor: pointer;
+}
+.downloads-button:hover { background: var(--hover); color: var(--text); }
+.downloads-button:focus-visible { outline: none; box-shadow: var(--focus); }
+.downloads-button svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.downloads-button .track { stroke: var(--border-strong); }
+.downloads-button .value { stroke: var(--accent); stroke-width: 2; transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 0.25s; }
+.downloads-button.busy .value { animation: spin 1s linear infinite; }
+.downloads-button .count {
+  position: absolute; top: 1px; right: 0; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 7px;
+  background: var(--accent); color: #fff; font-size: 9px; font-weight: 600; line-height: 13px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .downloads-button.busy .value { animation: none; }
+}
+
+.sheet.downloads { width: min(520px, 100%); max-height: calc(100% - 48px); }
+.sheet.downloads header { display: flex; align-items: center; justify-content: space-between; }
+.sheet.downloads .icon {
+  display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px;
+  background: none; color: var(--muted); cursor: pointer;
+}
+.sheet.downloads .icon:hover { background: var(--hover); color: var(--text); }
+.sheet.downloads .icon:focus-visible { outline: none; box-shadow: var(--focus); }
+.sheet.downloads ul { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.sheet.downloads li {
+  display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'name actions' 'bar actions' 'status actions';
+  gap: 4px 12px; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--bg);
+}
+.sheet.downloads .name { grid-area: name; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.sheet.downloads .status { grid-area: status; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.sheet.downloads li.failed .status { color: var(--danger); }
+.sheet.downloads .row-actions { grid-area: actions; display: flex; gap: 6px; }
+.sheet.downloads .bar { grid-area: bar; position: relative; height: 4px; overflow: hidden; border-radius: 2px; background: var(--border); }
+.sheet.downloads .bar span { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 2px; background: var(--accent); transition: width 0.25s; }
+.sheet.downloads .bar.indeterminate span { width: 35%; animation: progress 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .sheet.downloads .bar.indeterminate span { left: 0; width: 100%; opacity: 0.6; animation: none; }
+}
