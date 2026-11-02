@@ -133,6 +133,8 @@ pub fn show_only(app: &AppHandle, target_label: Option<&str>) -> EffectResult {
     Ok(())
 }
 
+// Only Linux tabs wait for their web process before being shown.
+#[cfg(target_os = "linux")]
 pub fn content_starting(app: &AppHandle, label: &str) {
     presentation(app).start(label);
 }

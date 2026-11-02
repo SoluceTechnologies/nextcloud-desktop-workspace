@@ -21,6 +21,7 @@ impl Shown {
         self.target.clone().filter(|label| !self.starting.contains(label))
     }
 
+    #[cfg(any(target_os = "linux", test))]
     pub fn start(&mut self, label: &str) {
         self.starting.insert(label.into());
     }
