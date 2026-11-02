@@ -69,6 +69,12 @@ Content webviews therefore turn off the `ViewTransitions` and `CrossDocumentView
 
 WebKit decides which features a document gets (WebRTC, the flags above) from the settings in place when the document is created. Linux tabs therefore open `about:blank`, get configured, and only then navigate to their page.
 
+### New Linux tabs are shown once their web process is up
+
+Every tab has its own web process, which takes a few hundred milliseconds to start. When GTK paints a view whose process is still starting, WebKitGTK blocks the main thread for up to 500 ms waiting for a reply the process cannot send yet (`DrawingAreaProxyCoordinatedGraphics::forceUpdateIfNeeded`). Showing a new tab right away froze the whole app, tab bar included, on every new tab.
+
+`window::Presentation` therefore marks a new tab as starting and keeps it hidden until its web process first asks to navigate. The tab bar switches at once; the content area shows the app background until then.
+
 ### Downloads
 
 - **One handler per profile on Linux.** wry's default webview settings register a download handler on the profile's WebKit context for *every* webview. The oldest one wins: it never creates a missing Downloads folder, and once its tab is closed it cancels every later download in that workspace. On Linux the app removes those handlers and keeps exactly one of its own per context.
